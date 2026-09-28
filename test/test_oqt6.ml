@@ -169,7 +169,82 @@ let () =
   Dialog.set_modal dlg true;
   assert (Dialog.is_modal dlg);
 
-  (* 14. Test Timer and Event Loop *)
+  (* 16. Test Color, Font, Pen, Brush *)
+  let c = Color.rgb 255 128 64 ~alpha:200 () in
+  assert (Color.red c = 255);
+  assert (Color.green c = 128);
+  assert (Color.blue c = 64);
+  assert (Color.alpha c = 200);
+
+  let c_name = Color.name "#123456" in
+  assert (Color.red c_name = 0x12);
+  assert (Color.green c_name = 0x34);
+  assert (Color.blue c_name = 0x56);
+
+  let f = Font.create ~family:"Helvetica" ~point_size:14 ~bold:true ~italic:false () in
+  assert (Font.family f = "Helvetica");
+  assert (Font.point_size f = 14);
+  assert (Font.bold f);
+  assert (not (Font.italic f));
+  Font.set_family f "Courier";
+  assert (Font.family f = "Courier");
+  Font.set_point_size f 18;
+  assert (Font.point_size f = 18);
+  Font.set_bold f false;
+  assert (not (Font.bold f));
+  Font.set_italic f true;
+  assert (Font.italic f);
+
+  let p = Pen.create ~color:c ~width:3 ~style:`Dash_line () in
+  Pen.set_color p Color.black;
+  Pen.set_width p 5;
+  Pen.set_style p `Dot_line;
+
+  let b = Brush.create ~color:Color.blue_color ~style:`Solid_pattern () in
+  Brush.set_color b Color.red_color;
+  Brush.set_style b `No_brush;
+
+  (* 17. Test Canvas & Painter *)
+  let canvas = Canvas.create ~parent:win () in
+  assert (Object.is_valid canvas);
+  Widget.resize canvas ~width:200 ~height:200;
+  Canvas.set_mouse_tracking canvas true;
+
+  let paint_count = ref 0 in
+  Canvas.on_paint canvas (fun painter ->
+    incr paint_count;
+    Painter.set_pen painter (Pen.create ~color:Color.black ~width:2 ());
+    Painter.set_brush painter (Brush.create ~color:Color.yellow ());
+    Painter.set_font painter f;
+    Painter.draw_line painter ~x1:0 ~y1:0 ~x2:100 ~y2:100;
+    Painter.draw_rect painter ~x:10 ~y:10 ~width:50 ~height:50;
+    Painter.fill_rect painter ~x:20 ~y:20 ~width:30 ~height:30 Color.green_color;
+    Painter.draw_rounded_rect painter ~x:30 ~y:30 ~width:40 ~height:40 ~x_radius:5.0 ~y_radius:5.0;
+    Painter.draw_ellipse painter ~x:40 ~y:40 ~width:30 ~height:30;
+    Painter.draw_text painter ~x:5 ~y:15 "Canvas Text";
+    Painter.save painter;
+    Painter.translate painter ~dx:10.0 ~dy:10.0;
+    Painter.scale painter ~sx:1.5 ~sy:1.5;
+    Painter.rotate painter ~angle:45.0;
+    Painter.restore painter
+  );
+
+  let mouse_tested = ref false in
+  Canvas.on_mouse_press canvas (fun ev ->
+    assert (ev.button = `Left_button);
+    mouse_tested := true
+  );
+  Canvas.on_mouse_release canvas (fun _ -> ());
+  Canvas.on_mouse_move canvas (fun _ -> ());
+  Canvas.on_key_press canvas (fun _ -> ());
+  Canvas.on_resize canvas (fun ev ->
+    assert (ev.width >= 0)
+  );
+
+  Layout.add_widget layout canvas;
+  Canvas.update canvas;
+
+  (* 18. Test Timer and Event Loop *)
   let timer_fired = ref false in
   Timer.single_shot 50 (fun () ->
     timer_fired := true;
@@ -187,6 +262,7 @@ let () =
   assert (!timer_fired);
   assert (!text_changed_fired);
   assert (!received_text = "Hello from OCaml!");
+  assert (!paint_count > 0);
 
   (* 15. Test memory model and cascade deletion *)
   print_endline "Testing memory model and object lifetime tracking...";

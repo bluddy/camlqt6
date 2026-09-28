@@ -64,10 +64,7 @@ T* get_qobject(value v) {
     if (holder->ptr.isNull()) {
         caml_failwith("Oqt6: Object has already been destroyed or is null");
     }
-    T* casted = qobject_cast<T*>(holder->ptr.data());
-    if (!casted) {
-        casted = dynamic_cast<T*>(holder->ptr.data());
-    }
+    T* casted = dynamic_cast<T*>(holder->ptr.data());
     if (!casted) {
         caml_failwith("Oqt6: Invalid object type cast");
     }

@@ -2,6 +2,11 @@
 
 type orientation = [ `Horizontal | `Vertical ]
 
+type mouse_button = [ `Left_button | `Right_button | `Middle_button | `No_button ]
+type mouse_event = { x : int; y : int; button : mouse_button }
+type key_event = { key : int; text : string }
+type resize_event = { width : int; height : int; old_width : int; old_height : int }
+
 type qwidget = [ Core.qobject | `QWidget ]
 type qlayout = [ Core.qobject | `QLayout ]
 type qbox_layout = [ qlayout | `QBoxLayout ]
@@ -18,6 +23,7 @@ type qprogress_bar = [ qwidget | `QProgressBar ]
 type qtext_edit = [ qwidget | `QTextEdit ]
 type qlabel = [ qwidget | `QLabel ]
 type qline_edit = [ qwidget | `QLineEdit ]
+type qcanvas = [ qwidget | `QCanvas ]
 type qmain_window = [ qwidget | `QMainWindow ]
 type qmenu_bar = [ qwidget | `QMenuBar ]
 type qmenu = [ qwidget | `QMenu ]
@@ -50,6 +56,8 @@ module Widget : sig
   val is_visible : [> `QWidget ] Core.t -> bool
   val set_layout : [> `QWidget ] Core.t -> [> `QLayout ] Core.t -> unit
   val set_style_sheet : [> `QWidget ] Core.t -> string -> unit
+  val update : [> `QWidget ] Core.t -> unit
+  val set_mouse_tracking : [> `QWidget ] Core.t -> bool -> unit
 end
 
 module Button : sig
@@ -155,6 +163,18 @@ module LineEdit : sig
   val placeholder_text : [> `QLineEdit ] Core.t -> string
   val on_text_changed : [> `QLineEdit ] Core.t -> (string -> unit) -> unit
   val on_return_pressed : [> `QLineEdit ] Core.t -> (unit -> unit) -> unit
+end
+
+module Canvas : sig
+  val create : ?parent:[> `QWidget ] Core.t -> unit -> qcanvas Core.t
+  val on_paint : [> `QCanvas ] Core.t -> (Gui.Painter.t -> unit) -> unit
+  val on_mouse_press : [> `QCanvas ] Core.t -> (mouse_event -> unit) -> unit
+  val on_mouse_release : [> `QCanvas ] Core.t -> (mouse_event -> unit) -> unit
+  val on_mouse_move : [> `QCanvas ] Core.t -> (mouse_event -> unit) -> unit
+  val on_key_press : [> `QCanvas ] Core.t -> (key_event -> unit) -> unit
+  val on_resize : [> `QCanvas ] Core.t -> (resize_event -> unit) -> unit
+  val update : [> `QCanvas ] Core.t -> unit
+  val set_mouse_tracking : [> `QCanvas ] Core.t -> bool -> unit
 end
 
 module MainWindow : sig

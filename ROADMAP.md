@@ -59,40 +59,41 @@ flowchart LR
     P4 --> P5["Phase 5: Declarative Functional DSL"]
 ```
 
-### Phase 1: Essential Desktop UI (The "80/20" Rule)
+### Phase 1: Essential Desktop UI (The "80/20" Rule) — [COMPLETED]
 *Goal: Enable building rich, complete desktop applications with standard widgets.*
 
 1. **Top-Level Windows & Dialogs:**
-   - `QMainWindow`: Central widget, toolbars, status bar, dock widgets, menu bar.
-   - `QDialog`, `QMessageBox`, `QFileDialog`, `QColorDialog`, `QFontDialog`.
-2. **Complex Layouts:**
-   - `QGridLayout`, `QFormLayout`, `QStackedLayout`, `QSplitter`, `QScrollArea`.
+   - [x] `QMainWindow`: Central widget, menu bar, status bar.
+   - [x] `QDialog` (`exec`, `accept`, `reject`, modal state).
+   - [x] `QMessageBox` (`information`, `warning`, `critical`, `question`).
+   - [x] `QFileDialog` (`get_open_file_name`, `get_save_file_name`, `get_existing_directory`).
+2. **Layouts:**
+   - [x] `QVBoxLayout`, `QHBoxLayout` (widgets, layouts, stretches, spacing).
+   - [x] `QGridLayout` (rows, cols, row/col spans, stretches, spacing).
 3. **Core Interactive Widgets:**
-   - Input: `QCheckBox`, `QRadioButton`, `QButtonGroup`, `QComboBox`, `QSpinBox`, `QDoubleSpinBox`, `QSlider`.
-   - Rich Text: `QTextEdit`, `QPlainTextEdit`.
-   - Indicators: `QProgressBar`, `QLCDNumber`.
+   - [x] `QPushButton`, `QCheckBox`, `QRadioButton`, `QComboBox`, `QSpinBox`, `QSlider`, `QProgressBar`.
+   - [x] `QTextEdit`, `QLabel`, `QLineEdit`.
 4. **Menus, Actions & Shortcuts:**
-   - `QAction`, `QMenuBar`, `QMenu`, `QToolBar`, `QKeySequence`.
-5. **Typed Enums & Flags:**
-   - Alignment (`Align_left`, `Align_center`, `Align_right`).
-   - Orientations (`Horizontal`, `Vertical`).
-   - Standard colors and window flags.
+   - [x] `QAction`, `QMenuBar`, `QMenu`, `QStatusBar`.
 
 ---
 
-### Phase 2: Custom Drawing & Event Trampolines
-*Goal: Allow OCaml users to build custom interactive widgets and visualizations.*
+### Phase 2: Custom Drawing & Event Trampolines — [COMPLETED]
+*Goal: Allow OCaml users to build custom interactive widgets, graphics canvases, and visualizations.*
 
-Qt relies heavily on C++ virtual methods for custom behavior. We need C++ trampoline classes that forward virtual calls to OCaml closures:
-
-1. **Trampoline Subclassing (`OCamlWidget : public QWidget`):**
-   - Override `paintEvent(QPaintEvent*)` $\rightarrow$ calls OCaml drawing function.
-   - Override `mousePressEvent`, `mouseReleaseEvent`, `mouseMoveEvent`.
-   - Override `keyPressEvent`, `keyReleaseEvent`.
-   - Override `resizeEvent`, `closeEvent`.
+1. **Event Trampolining (`OCamlCanvas : public QWidget`):**
+   - [x] `paintEvent` dispatching to OCaml drawing callback with safe painter lifetime management.
+   - [x] `mousePressEvent`, `mouseReleaseEvent`, `mouseMoveEvent` with typed coordinates and mouse buttons (`Left_button`, `Right_button`, etc.).
+   - [x] `keyPressEvent` dispatching key codes and unicode text strings.
+   - [x] `resizeEvent` dispatching current and previous dimensions.
+   - [x] `Widget.update` / `Canvas.update` and `set_mouse_tracking`.
 2. **2D Graphics & Painting (`QtGui`):**
-   - `QPainter`: `draw_line`, `draw_rect`, `draw_ellipse`, `draw_text`, `draw_image`.
-   - `QPen`, `QBrush`, `QColor`, `QFont`, `QPixmap`, `QImage`.
+   - [x] `QColor`: RGB, hex/names, RGBA channels, color presets.
+   - [x] `QFont`: Family, size, bold, italic.
+   - [x] `QPen`: Colors, stroke widths, styles (`Solid_line`, `Dash_line`, `Dot_line`, `No_pen`).
+   - [x] `QBrush`: Colors, styles (`Solid_pattern`, `No_brush`).
+   - [x] `QPainter`: `draw_line`, `draw_rect`, `fill_rect`, `draw_rounded_rect`, `draw_ellipse`, `draw_text`, affine transforms (`translate`, `scale`, `rotate`), state stack (`save`, `restore`).
+   - [x] Interactive demo: [examples/drawing_canvas.ml](file:///home/yotam/source/ocaml/oqt6/examples/drawing_canvas.ml).
 
 ---
 
@@ -109,17 +110,15 @@ Qt relies heavily on C++ virtual methods for custom behavior. We need C++ trampo
 
 ---
 
-### Phase 4: Generator Tooling for Total Coverage
-*Goal: Scale out to the entire Qt 6 surface area without manual stub maintenance.*
+### Phase 4: Generator Tooling for Broad Desktop GUI Coverage
+*Goal: Scale out to the remaining desktop GUI surface area (strictly GUI-focused; Network, Sql, Svg, and QML are out of scope).*
 
 1. **Generator Strategy:**
-   - Build a generator tool using the Clang AST or the [libqt6c](https://github.com/rcalixte/libqt6c) C ABI definitions.
+   - Build a generator tool using Clang AST or the [libqt6c](https://github.com/rcalixte/libqt6c) C ABI definitions.
    - Auto-generate:
-     - All remaining widget classes.
-     - `QtNetwork` (`QNetworkAccessManager`, `QTcpSocket`, `QUdpSocket`).
-     - `QtSvg` (`QSvgWidget`, `QSvgRenderer`).
-     - `QtSql` (`QSqlDatabase`, `QSqlQuery`).
-     - Remaining `QtCore` utilities (`QSettings`, `QProcess`, `QDir`, `QFileInfo`).
+     - Additional desktop widgets: `QTabWidget`, `QStackedWidget`, `QSplitter`, `QScrollArea`, `QToolBar`, `QDockWidget`, `QGroupBox`.
+     - Additional GUI dialogs: `QColorDialog`, `QFontDialog`, `QInputDialog`, `QProgressDialog`.
+     - Standard desktop items: `QIcon`, `QPixmap`, `QImage`, `QCursor`, `QKeySequence`.
 
 ---
 

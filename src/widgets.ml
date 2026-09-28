@@ -4,6 +4,11 @@ let int_of_orientation = function
   | `Horizontal -> 0
   | `Vertical -> 1
 
+type mouse_button = [ `Left_button | `Right_button | `Middle_button | `No_button ]
+type mouse_event = { x : int; y : int; button : mouse_button }
+type key_event = { key : int; text : string }
+type resize_event = { width : int; height : int; old_width : int; old_height : int }
+
 type qwidget = [ Core.qobject | `QWidget ]
 type qlayout = [ Core.qobject | `QLayout ]
 type qbox_layout = [ qlayout | `QBoxLayout ]
@@ -20,6 +25,7 @@ type qprogress_bar = [ qwidget | `QProgressBar ]
 type qtext_edit = [ qwidget | `QTextEdit ]
 type qlabel = [ qwidget | `QLabel ]
 type qline_edit = [ qwidget | `QLineEdit ]
+type qcanvas = [ qwidget | `QCanvas ]
 type qmain_window = [ qwidget | `QMainWindow ]
 type qmenu_bar = [ qwidget | `QMenuBar ]
 type qmenu = [ qwidget | `QMenu ]
@@ -58,6 +64,8 @@ external qwidget_set_visible : 'a Core.t -> bool -> unit = "caml_oqt6_qwidget_se
 external qwidget_is_visible : 'a Core.t -> bool = "caml_oqt6_qwidget_is_visible"
 external qwidget_set_layout : 'a Core.t -> 'b Core.t -> unit = "caml_oqt6_qwidget_set_layout"
 external qwidget_set_style_sheet : 'a Core.t -> string -> unit = "caml_oqt6_qwidget_set_style_sheet"
+external qwidget_update : 'a Core.t -> unit = "caml_oqt6_qwidget_update"
+external qwidget_set_mouse_tracking : 'a Core.t -> bool -> unit = "caml_oqt6_qwidget_set_mouse_tracking"
 
 module Widget = struct
   let create ?parent () = qwidget_create parent
@@ -76,6 +84,8 @@ module Widget = struct
   let is_visible = qwidget_is_visible
   let set_layout = qwidget_set_layout
   let set_style_sheet = qwidget_set_style_sheet
+  let update = qwidget_update
+  let set_mouse_tracking = qwidget_set_mouse_tracking
 end
 
 (* Button *)
@@ -277,6 +287,42 @@ module LineEdit = struct
   let placeholder_text = qlineedit_placeholder_text
   let on_text_changed = qlineedit_connect_text_changed
   let on_return_pressed = qlineedit_connect_return_pressed
+end
+
+(* Canvas *)
+external qcanvas_create : 'a Core.t option -> qcanvas Core.t = "caml_oqt6_qcanvas_create"
+external qcanvas_on_paint : 'a Core.t -> (Gui.Painter.t -> unit) -> unit = "caml_oqt6_qcanvas_on_paint"
+external qcanvas_on_mouse_press : 'a Core.t -> (int -> int -> int -> unit) -> unit = "caml_oqt6_qcanvas_on_mouse_press"
+external qcanvas_on_mouse_release : 'a Core.t -> (int -> int -> int -> unit) -> unit = "caml_oqt6_qcanvas_on_mouse_release"
+external qcanvas_on_mouse_move : 'a Core.t -> (int -> int -> int -> unit) -> unit = "caml_oqt6_qcanvas_on_mouse_move"
+external qcanvas_on_key_press : 'a Core.t -> (int -> string -> unit) -> unit = "caml_oqt6_qcanvas_on_key_press"
+external qcanvas_on_resize : 'a Core.t -> (int -> int -> int -> int -> unit) -> unit = "caml_oqt6_qcanvas_on_resize"
+
+module Canvas = struct
+  let create ?parent () = qcanvas_create parent
+  let on_paint = qcanvas_on_paint
+
+  let wrap_mouse_cb cb x y btn_int =
+    let button = match btn_int with
+      | 0 -> `Left_button
+      | 1 -> `Right_button
+      | 2 -> `Middle_button
+      | _ -> `No_button
+    in
+    cb { x; y; button }
+
+  let on_mouse_press c cb = qcanvas_on_mouse_press c (wrap_mouse_cb cb)
+  let on_mouse_release c cb = qcanvas_on_mouse_release c (wrap_mouse_cb cb)
+  let on_mouse_move c cb = qcanvas_on_mouse_move c (wrap_mouse_cb cb)
+
+  let on_key_press c cb =
+    qcanvas_on_key_press c (fun key text -> cb { key; text })
+
+  let on_resize c cb =
+    qcanvas_on_resize c (fun width height old_width old_height -> cb { width; height; old_width; old_height })
+
+  let update = qwidget_update
+  let set_mouse_tracking = qwidget_set_mouse_tracking
 end
 
 (* MainWindow *)

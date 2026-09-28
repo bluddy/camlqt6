@@ -21,9 +21,19 @@
 #include <QDialog>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QPainter>
+#include <QColor>
+#include <QFont>
+#include <QPen>
+#include <QBrush>
+#include <QPaintEvent>
+#include <QMouseEvent>
+#include <QKeyEvent>
+#include <QResizeEvent>
 #include <QTimer>
 #include <QString>
 #include <QPointer>
+#include <new>
 
 #include <cstring>
 #include <vector>
@@ -72,6 +82,260 @@ static void connect_root_cleanup(QObject* sender, value* root) {
         delete root;
     });
 }
+
+// QColor custom operations
+static struct custom_operations color_custom_ops = {
+    (char*)"org.oqt6.qcolor",
+    custom_finalize_default,
+    custom_compare_default,
+    custom_hash_default,
+    custom_serialize_default,
+    custom_deserialize_default,
+    custom_compare_ext_default,
+    custom_fixed_length_default
+};
+
+static value alloc_color(const QColor& c) {
+    value v = caml_alloc_custom(&color_custom_ops, sizeof(QColor), 0, 1);
+    new (Data_custom_val(v)) QColor(c);
+    return v;
+}
+
+#define QColor_val(v) (*((QColor*)Data_custom_val(v)))
+
+// QFont custom operations
+static void finalize_font(value v) {
+    ((QFont*)Data_custom_val(v))->~QFont();
+}
+
+static struct custom_operations font_custom_ops = {
+    (char*)"org.oqt6.qfont",
+    finalize_font,
+    custom_compare_default,
+    custom_hash_default,
+    custom_serialize_default,
+    custom_deserialize_default,
+    custom_compare_ext_default,
+    custom_fixed_length_default
+};
+
+static value alloc_font(const QFont& f) {
+    value v = caml_alloc_custom(&font_custom_ops, sizeof(QFont), 0, 1);
+    new (Data_custom_val(v)) QFont(f);
+    return v;
+}
+
+#define Font_val(v) (*((QFont*)Data_custom_val(v)))
+
+// QPen custom operations
+static void finalize_pen(value v) {
+    ((QPen*)Data_custom_val(v))->~QPen();
+}
+
+static struct custom_operations pen_custom_ops = {
+    (char*)"org.oqt6.qpen",
+    finalize_pen,
+    custom_compare_default,
+    custom_hash_default,
+    custom_serialize_default,
+    custom_deserialize_default,
+    custom_compare_ext_default,
+    custom_fixed_length_default
+};
+
+static value alloc_pen(const QPen& p) {
+    value v = caml_alloc_custom(&pen_custom_ops, sizeof(QPen), 0, 1);
+    new (Data_custom_val(v)) QPen(p);
+    return v;
+}
+
+#define Pen_val(v) (*((QPen*)Data_custom_val(v)))
+
+// QBrush custom operations
+static void finalize_brush(value v) {
+    ((QBrush*)Data_custom_val(v))->~QBrush();
+}
+
+static struct custom_operations brush_custom_ops = {
+    (char*)"org.oqt6.qbrush",
+    finalize_brush,
+    custom_compare_default,
+    custom_hash_default,
+    custom_serialize_default,
+    custom_deserialize_default,
+    custom_compare_ext_default,
+    custom_fixed_length_default
+};
+
+static value alloc_brush(const QBrush& b) {
+    value v = caml_alloc_custom(&brush_custom_ops, sizeof(QBrush), 0, 1);
+    new (Data_custom_val(v)) QBrush(b);
+    return v;
+}
+
+#define Brush_val(v) (*((QBrush*)Data_custom_val(v)))
+
+// QPainter holder
+struct OCamlPainterHolder {
+    QPainter* painter;
+};
+
+#define Painter_holder(v) ((OCamlPainterHolder*)Data_custom_val(v))
+
+static struct custom_operations painter_custom_ops = {
+    (char*)"org.oqt6.qpainter",
+    custom_finalize_default,
+    custom_compare_default,
+    custom_hash_default,
+    custom_serialize_default,
+    custom_deserialize_default,
+    custom_compare_ext_default,
+    custom_fixed_length_default
+};
+
+static value alloc_painter(QPainter* p) {
+    value v = caml_alloc_custom(&painter_custom_ops, sizeof(OCamlPainterHolder), 0, 1);
+    Painter_holder(v)->painter = p;
+    return v;
+}
+
+static QPainter* get_painter(value v) {
+    OCamlPainterHolder* h = Painter_holder(v);
+    if (!h->painter) {
+        caml_failwith("Oqt6: QPainter is no longer active (only valid during paint event)");
+    }
+    return h->painter;
+}
+
+// OCamlCanvas trampoline widget
+class OCamlCanvas : public QWidget {
+public:
+    using QWidget::QWidget;
+
+    value* paint_cb = nullptr;
+    value* mouse_press_cb = nullptr;
+    value* mouse_release_cb = nullptr;
+    value* mouse_move_cb = nullptr;
+    value* key_press_cb = nullptr;
+    value* resize_cb = nullptr;
+
+    ~OCamlCanvas() {
+        CamlDomainLockGuard guard;
+        cleanup_root(&paint_cb);
+        cleanup_root(&mouse_press_cb);
+        cleanup_root(&mouse_release_cb);
+        cleanup_root(&mouse_move_cb);
+        cleanup_root(&key_press_cb);
+        cleanup_root(&resize_cb);
+    }
+
+private:
+    void cleanup_root(value** r) {
+        if (*r) {
+            caml_remove_global_root(*r);
+            delete *r;
+            *r = nullptr;
+        }
+    }
+
+protected:
+    void paintEvent(QPaintEvent* event) override {
+        if (paint_cb) {
+            QPainter painter(this);
+            CamlDomainLockGuard guard;
+            value v_p = alloc_painter(&painter);
+            caml_callback_exn(*paint_cb, v_p);
+            Painter_holder(v_p)->painter = nullptr;
+        } else {
+            QWidget::paintEvent(event);
+        }
+    }
+
+    void mousePressEvent(QMouseEvent* event) override {
+        if (mouse_press_cb) {
+            CamlDomainLockGuard guard;
+            int btn = 3;
+            if (event->button() == Qt::LeftButton) btn = 0;
+            else if (event->button() == Qt::RightButton) btn = 1;
+            else if (event->button() == Qt::MiddleButton) btn = 2;
+
+            value args[3] = {
+                Val_int((int)event->position().x()),
+                Val_int((int)event->position().y()),
+                Val_int(btn)
+            };
+            caml_callbackN_exn(*mouse_press_cb, 3, args);
+        } else {
+            QWidget::mousePressEvent(event);
+        }
+    }
+
+    void mouseReleaseEvent(QMouseEvent* event) override {
+        if (mouse_release_cb) {
+            CamlDomainLockGuard guard;
+            int btn = 3;
+            if (event->button() == Qt::LeftButton) btn = 0;
+            else if (event->button() == Qt::RightButton) btn = 1;
+            else if (event->button() == Qt::MiddleButton) btn = 2;
+
+            value args[3] = {
+                Val_int((int)event->position().x()),
+                Val_int((int)event->position().y()),
+                Val_int(btn)
+            };
+            caml_callbackN_exn(*mouse_release_cb, 3, args);
+        } else {
+            QWidget::mouseReleaseEvent(event);
+        }
+    }
+
+    void mouseMoveEvent(QMouseEvent* event) override {
+        if (mouse_move_cb) {
+            CamlDomainLockGuard guard;
+            int btn = 3;
+            if (event->buttons() & Qt::LeftButton) btn = 0;
+            else if (event->buttons() & Qt::RightButton) btn = 1;
+            else if (event->buttons() & Qt::MiddleButton) btn = 2;
+
+            value args[3] = {
+                Val_int((int)event->position().x()),
+                Val_int((int)event->position().y()),
+                Val_int(btn)
+            };
+            caml_callbackN_exn(*mouse_move_cb, 3, args);
+        } else {
+            QWidget::mouseMoveEvent(event);
+        }
+    }
+
+    void keyPressEvent(QKeyEvent* event) override {
+        if (key_press_cb) {
+            CamlDomainLockGuard guard;
+            QByteArray utf8 = event->text().toUtf8();
+            value args[2] = {
+                Val_int(event->key()),
+                caml_copy_string(utf8.constData())
+            };
+            caml_callbackN_exn(*key_press_cb, 2, args);
+        } else {
+            QWidget::keyPressEvent(event);
+        }
+    }
+
+    void resizeEvent(QResizeEvent* event) override {
+        if (resize_cb) {
+            CamlDomainLockGuard guard;
+            value args[4] = {
+                Val_int(event->size().width()),
+                Val_int(event->size().height()),
+                Val_int(event->oldSize().width()),
+                Val_int(event->oldSize().height())
+            };
+            caml_callbackN_exn(*resize_cb, 4, args);
+        }
+        QWidget::resizeEvent(event);
+    }
+};
 
 extern "C" {
 
@@ -1575,6 +1839,373 @@ CAMLprim value caml_oqt6_qfiledialog_get_existing_directory(value v_parent, valu
     QByteArray utf8 = result.toUtf8();
     Store_field(some, 0, caml_copy_string(utf8.constData()));
     CAMLreturn(some);
+}
+
+/* QColor primitives */
+
+CAMLprim value caml_oqt6_qcolor_rgb(value v_r, value v_g, value v_b, value v_a) {
+    CAMLparam4(v_r, v_g, v_b, v_a);
+    int r = Int_val(v_r);
+    int g = Int_val(v_g);
+    int b = Int_val(v_b);
+    int a = Is_block(v_a) ? Int_val(Field(v_a, 0)) : 255;
+    CAMLreturn(alloc_color(QColor(r, g, b, a)));
+}
+
+CAMLprim value caml_oqt6_qcolor_name(value v_name) {
+    CAMLparam1(v_name);
+    CAMLreturn(alloc_color(QColor(QString::fromUtf8(String_val(v_name)))));
+}
+
+CAMLprim value caml_oqt6_qcolor_red(value v_c) {
+    CAMLparam1(v_c);
+    CAMLreturn(Val_int(QColor_val(v_c).red()));
+}
+
+CAMLprim value caml_oqt6_qcolor_green(value v_c) {
+    CAMLparam1(v_c);
+    CAMLreturn(Val_int(QColor_val(v_c).green()));
+}
+
+CAMLprim value caml_oqt6_qcolor_blue(value v_c) {
+    CAMLparam1(v_c);
+    CAMLreturn(Val_int(QColor_val(v_c).blue()));
+}
+
+CAMLprim value caml_oqt6_qcolor_alpha(value v_c) {
+    CAMLparam1(v_c);
+    CAMLreturn(Val_int(QColor_val(v_c).alpha()));
+}
+
+/* QFont primitives */
+
+CAMLprim value caml_oqt6_qfont_create(value v_family, value v_size, value v_bold, value v_italic) {
+    CAMLparam4(v_family, v_size, v_bold, v_italic);
+    QFont font;
+    if (Is_block(v_family)) {
+        font.setFamily(QString::fromUtf8(String_val(Field(v_family, 0))));
+    }
+    if (Is_block(v_size)) {
+        font.setPointSize(Int_val(Field(v_size, 0)));
+    }
+    if (Is_block(v_bold)) {
+        font.setBold(Bool_val(Field(v_bold, 0)));
+    }
+    if (Is_block(v_italic)) {
+        font.setItalic(Bool_val(Field(v_italic, 0)));
+    }
+    CAMLreturn(alloc_font(font));
+}
+
+CAMLprim value caml_oqt6_qfont_family(value v_f) {
+    CAMLparam1(v_f);
+    QByteArray utf8 = Font_val(v_f).family().toUtf8();
+    CAMLreturn(caml_copy_string(utf8.constData()));
+}
+
+CAMLprim value caml_oqt6_qfont_set_family(value v_f, value v_name) {
+    CAMLparam2(v_f, v_name);
+    Font_val(v_f).setFamily(QString::fromUtf8(String_val(v_name)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qfont_point_size(value v_f) {
+    CAMLparam1(v_f);
+    CAMLreturn(Val_int(Font_val(v_f).pointSize()));
+}
+
+CAMLprim value caml_oqt6_qfont_bold(value v_f) {
+    CAMLparam1(v_f);
+    CAMLreturn(Val_bool(Font_val(v_f).bold()));
+}
+
+CAMLprim value caml_oqt6_qfont_italic(value v_f) {
+    CAMLparam1(v_f);
+    CAMLreturn(Val_bool(Font_val(v_f).italic()));
+}
+
+CAMLprim value caml_oqt6_qfont_set_point_size(value v_f, value v_s) {
+    CAMLparam2(v_f, v_s);
+    Font_val(v_f).setPointSize(Int_val(v_s));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qfont_set_bold(value v_f, value v_b) {
+    CAMLparam2(v_f, v_b);
+    Font_val(v_f).setBold(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qfont_set_italic(value v_f, value v_b) {
+    CAMLparam2(v_f, v_b);
+    Font_val(v_f).setItalic(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+/* QPen primitives */
+
+CAMLprim value caml_oqt6_qpen_create(value v_color, value v_width, value v_style) {
+    CAMLparam3(v_color, v_width, v_style);
+    QPen pen;
+    if (Is_block(v_color)) {
+        pen.setColor(QColor_val(Field(v_color, 0)));
+    }
+    if (Is_block(v_width)) {
+        pen.setWidth(Int_val(Field(v_width, 0)));
+    }
+    if (Is_block(v_style)) {
+        int s = Int_val(Field(v_style, 0));
+        Qt::PenStyle ps = Qt::SolidLine;
+        if (s == 1) ps = Qt::DashLine;
+        else if (s == 2) ps = Qt::DotLine;
+        else if (s == 3) ps = Qt::NoPen;
+        pen.setStyle(ps);
+    }
+    CAMLreturn(alloc_pen(pen));
+}
+
+CAMLprim value caml_oqt6_qpen_set_color(value v_p, value v_c) {
+    CAMLparam2(v_p, v_c);
+    Pen_val(v_p).setColor(QColor_val(v_c));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpen_set_width(value v_p, value v_w) {
+    CAMLparam2(v_p, v_w);
+    Pen_val(v_p).setWidth(Int_val(v_w));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpen_set_style(value v_p, value v_style) {
+    CAMLparam2(v_p, v_style);
+    int s = Int_val(v_style);
+    Qt::PenStyle ps = Qt::SolidLine;
+    if (s == 1) ps = Qt::DashLine;
+    else if (s == 2) ps = Qt::DotLine;
+    else if (s == 3) ps = Qt::NoPen;
+    Pen_val(v_p).setStyle(ps);
+    CAMLreturn(Val_unit);
+}
+
+/* QBrush primitives */
+
+CAMLprim value caml_oqt6_qbrush_create(value v_color, value v_style) {
+    CAMLparam2(v_color, v_style);
+    QBrush brush;
+    if (Is_block(v_color)) {
+        brush.setColor(QColor_val(Field(v_color, 0)));
+        brush.setStyle(Qt::SolidPattern);
+    }
+    if (Is_block(v_style)) {
+        int s = Int_val(Field(v_style, 0));
+        brush.setStyle(s == 0 ? Qt::SolidPattern : Qt::NoBrush);
+    }
+    CAMLreturn(alloc_brush(brush));
+}
+
+CAMLprim value caml_oqt6_qbrush_set_color(value v_b, value v_c) {
+    CAMLparam2(v_b, v_c);
+    Brush_val(v_b).setColor(QColor_val(v_c));
+    Brush_val(v_b).setStyle(Qt::SolidPattern);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qbrush_set_style(value v_b, value v_s) {
+    CAMLparam2(v_b, v_s);
+    int s = Int_val(v_s);
+    Brush_val(v_b).setStyle(s == 0 ? Qt::SolidPattern : Qt::NoBrush);
+    CAMLreturn(Val_unit);
+}
+
+/* QPainter primitives */
+
+CAMLprim value caml_oqt6_qpainter_set_pen(value v_p, value v_pen) {
+    CAMLparam2(v_p, v_pen);
+    get_painter(v_p)->setPen(Pen_val(v_pen));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_set_brush(value v_p, value v_brush) {
+    CAMLparam2(v_p, v_brush);
+    get_painter(v_p)->setBrush(Brush_val(v_brush));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_set_font(value v_p, value v_font) {
+    CAMLparam2(v_p, v_font);
+    get_painter(v_p)->setFont(Font_val(v_font));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_draw_line(value v_p, value v_x1, value v_y1, value v_x2, value v_y2) {
+    CAMLparam5(v_p, v_x1, v_y1, v_x2, v_y2);
+    get_painter(v_p)->drawLine(Int_val(v_x1), Int_val(v_y1), Int_val(v_x2), Int_val(v_y2));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_draw_rect(value v_p, value v_x, value v_y, value v_w, value v_h) {
+    CAMLparam5(v_p, v_x, v_y, v_w, v_h);
+    get_painter(v_p)->drawRect(Int_val(v_x), Int_val(v_y), Int_val(v_w), Int_val(v_h));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_fill_rect(value v_p, value v_x, value v_y, value v_w, value v_h, value v_c) {
+    CAMLparam5(v_p, v_x, v_y, v_w, v_h);
+    CAMLxparam1(v_c);
+    get_painter(v_p)->fillRect(Int_val(v_x), Int_val(v_y), Int_val(v_w), Int_val(v_h), QColor_val(v_c));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_fill_rect_byte(value* argv, int argn) {
+    (void)argn;
+    return caml_oqt6_qpainter_fill_rect(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
+}
+
+CAMLprim value caml_oqt6_qpainter_draw_rounded_rect(value v_p, value v_x, value v_y, value v_w, value v_h, value v_xr, value v_yr) {
+    CAMLparam5(v_p, v_x, v_y, v_w, v_h);
+    CAMLxparam2(v_xr, v_yr);
+    get_painter(v_p)->drawRoundedRect(Int_val(v_x), Int_val(v_y), Int_val(v_w), Int_val(v_h), Double_val(v_xr), Double_val(v_yr));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_draw_rounded_rect_byte(value* argv, int argn) {
+    (void)argn;
+    return caml_oqt6_qpainter_draw_rounded_rect(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+}
+
+CAMLprim value caml_oqt6_qpainter_draw_ellipse(value v_p, value v_x, value v_y, value v_w, value v_h) {
+    CAMLparam5(v_p, v_x, v_y, v_w, v_h);
+    get_painter(v_p)->drawEllipse(Int_val(v_x), Int_val(v_y), Int_val(v_w), Int_val(v_h));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_draw_text(value v_p, value v_x, value v_y, value v_text) {
+    CAMLparam4(v_p, v_x, v_y, v_text);
+    get_painter(v_p)->drawText(Int_val(v_x), Int_val(v_y), QString::fromUtf8(String_val(v_text)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_save(value v_p) {
+    CAMLparam1(v_p);
+    get_painter(v_p)->save();
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_restore(value v_p) {
+    CAMLparam1(v_p);
+    get_painter(v_p)->restore();
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_translate(value v_p, value v_dx, value v_dy) {
+    CAMLparam3(v_p, v_dx, v_dy);
+    get_painter(v_p)->translate(Double_val(v_dx), Double_val(v_dy));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_scale(value v_p, value v_sx, value v_sy) {
+    CAMLparam3(v_p, v_sx, v_sy);
+    get_painter(v_p)->scale(Double_val(v_sx), Double_val(v_sy));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_rotate(value v_p, value v_angle) {
+    CAMLparam2(v_p, v_angle);
+    get_painter(v_p)->rotate(Double_val(v_angle));
+    CAMLreturn(Val_unit);
+}
+
+/* QCanvas primitives */
+
+CAMLprim value caml_oqt6_qcanvas_create(value v_parent) {
+    CAMLparam1(v_parent);
+    QWidget* parent = nullptr;
+    bool has_parent = Is_block(v_parent);
+    if (has_parent) {
+        parent = get_qobject<QWidget>(Field(v_parent, 0));
+    }
+    OCamlCanvas* c = new OCamlCanvas(parent);
+    CAMLreturn(alloc_qobject(c, !has_parent));
+}
+
+CAMLprim value caml_oqt6_qcanvas_on_paint(value v_c, value v_cb) {
+    CAMLparam2(v_c, v_cb);
+    OCamlCanvas* c = get_qobject<OCamlCanvas>(v_c);
+    if (!c->paint_cb) {
+        c->paint_cb = new value;
+        caml_register_global_root(c->paint_cb);
+    }
+    *c->paint_cb = v_cb;
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qcanvas_on_mouse_press(value v_c, value v_cb) {
+    CAMLparam2(v_c, v_cb);
+    OCamlCanvas* c = get_qobject<OCamlCanvas>(v_c);
+    if (!c->mouse_press_cb) {
+        c->mouse_press_cb = new value;
+        caml_register_global_root(c->mouse_press_cb);
+    }
+    *c->mouse_press_cb = v_cb;
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qcanvas_on_mouse_release(value v_c, value v_cb) {
+    CAMLparam2(v_c, v_cb);
+    OCamlCanvas* c = get_qobject<OCamlCanvas>(v_c);
+    if (!c->mouse_release_cb) {
+        c->mouse_release_cb = new value;
+        caml_register_global_root(c->mouse_release_cb);
+    }
+    *c->mouse_release_cb = v_cb;
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qcanvas_on_mouse_move(value v_c, value v_cb) {
+    CAMLparam2(v_c, v_cb);
+    OCamlCanvas* c = get_qobject<OCamlCanvas>(v_c);
+    if (!c->mouse_move_cb) {
+        c->mouse_move_cb = new value;
+        caml_register_global_root(c->mouse_move_cb);
+    }
+    *c->mouse_move_cb = v_cb;
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qcanvas_on_key_press(value v_c, value v_cb) {
+    CAMLparam2(v_c, v_cb);
+    OCamlCanvas* c = get_qobject<OCamlCanvas>(v_c);
+    if (!c->key_press_cb) {
+        c->key_press_cb = new value;
+        caml_register_global_root(c->key_press_cb);
+    }
+    *c->key_press_cb = v_cb;
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qcanvas_on_resize(value v_c, value v_cb) {
+    CAMLparam2(v_c, v_cb);
+    OCamlCanvas* c = get_qobject<OCamlCanvas>(v_c);
+    if (!c->resize_cb) {
+        c->resize_cb = new value;
+        caml_register_global_root(c->resize_cb);
+    }
+    *c->resize_cb = v_cb;
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qwidget_update(value v_w) {
+    CAMLparam1(v_w);
+    QWidget* w = get_qobject<QWidget>(v_w);
+    w->update();
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qwidget_set_mouse_tracking(value v_w, value v_b) {
+    CAMLparam2(v_w, v_b);
+    QWidget* w = get_qobject<QWidget>(v_w);
+    w->setMouseTracking(Bool_val(v_b));
+    CAMLreturn(Val_unit);
 }
 
 } // extern "C"

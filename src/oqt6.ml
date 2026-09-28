@@ -4,9 +4,19 @@ module Widgets = Widgets
 
 type 'a t = 'a Core.t
 type orientation = Widgets.orientation
+type mouse_button = Widgets.mouse_button
+type mouse_event = Widgets.mouse_event
+type key_event = Widgets.key_event
+type resize_event = Widgets.resize_event
 
 module Object = Core.Object
 module Timer = Core.Timer
+
+module Color = Gui.Color
+module Font = Gui.Font
+module Pen = Gui.Pen
+module Brush = Gui.Brush
+module Painter = Gui.Painter
 
 module App = Widgets.App
 module Widget = Widgets.Widget
@@ -20,6 +30,7 @@ module ProgressBar = Widgets.ProgressBar
 module TextEdit = Widgets.TextEdit
 module Label = Widgets.Label
 module LineEdit = Widgets.LineEdit
+module Canvas = Widgets.Canvas
 module Layout = Widgets.Layout
 
 module MainWindow = Widgets.MainWindow
