@@ -158,6 +158,6 @@ let ui =
 | Milestone | Deliverables | Target Status |
 | :--- | :--- | :--- |
 | **M1: Foundational Proof of Concept** | Core types, phantom subtyping, `QApplication`, `QWidget`, `QPushButton`, `QLabel`, `QLineEdit`, `QVBoxLayout`, `QTimer`, automated test suite, example app | **Completed** |
-| **M2: Complete Common Widgets & Dialogs** | `QMainWindow`, `QDialog`, `QMessageBox`, `QCheckBox`, `QComboBox`, `QSlider`, `QProgressBar`, `QGridLayout` | **Ready to begin** |
-| **M3: Event Trampolines & QPainter** | `OCamlWidget` C++ trampoline class, `paintEvent`, `QPainter`, `QColor`, `QFont`, custom drawing demo | Next |
-| **M4: Generator Pipeline Evaluation** | Clang/JSON parser prototype to automate mechanical stubs for 100+ classes | Next |
+| **M2: Complete Common Widgets & Dialogs (Phase 1)** | `QMainWindow`, `QMenuBar`, `QMenu`, `QAction`, `QStatusBar`, `QDialog`, `QMessageBox`, `QFileDialog`, `QCheckBox`, `QRadioButton`, `QComboBox`, `QSpinBox`, `QSlider`, `QProgressBar`, `QTextEdit`, `QGridLayout`, kitchen sink demo | **Completed** |
+| **M3: Event Trampolines & QPainter (Phase 2)** | `OCamlWidget` C++ trampoline class, `paintEvent`, `QPainter`, `QColor`, `QFont`, custom drawing demo | **Next** |
+| **M4: Model / View / Delegate Architecture (Phase 3)** | `QTableView`, `QTreeView`, `QListView`, `QAbstractItemModel` bridge | Planned |
