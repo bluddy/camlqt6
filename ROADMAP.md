@@ -114,15 +114,29 @@ flowchart LR
 
 ---
 
-### Phase 4: Generator Tooling for Broad Desktop GUI Coverage
+### Phase 4: Broad Desktop GUI Coverage — [COMPLETED]
 *Goal: Scale out to the remaining desktop GUI surface area (strictly GUI-focused; Network, Sql, Svg, and QML are out of scope).*
 
-1. **Generator Strategy:**
-   - Build a generator tool using Clang AST or the [libqt6c](https://github.com/rcalixte/libqt6c) C ABI definitions.
-   - Auto-generate:
-     - Additional desktop widgets: `QTabWidget`, `QStackedWidget`, `QSplitter`, `QScrollArea`, `QToolBar`, `QDockWidget`, `QGroupBox`.
-     - Additional GUI dialogs: `QColorDialog`, `QFontDialog`, `QInputDialog`, `QProgressDialog`.
-     - Standard desktop items: `QIcon`, `QPixmap`, `QImage`, `QCursor`, `QKeySequence`.
+1. **Advanced Containers & Navigation:**
+   - [x] `QTabWidget`: Add/insert/remove tabs, tab titles, tab icons, movable/closable tabs, tab close requests, tab change signals.
+   - [x] `QStackedWidget`: Add/remove pages, current index, page transition signals.
+   - [x] `QSplitter`: Horizontal/Vertical splitters, stretch factors, programmatic and interactive sizes.
+   - [x] `QScrollArea`: Arbitrary child widget embedding, resizable viewport.
+   - [x] `QGroupBox`: Titled panels, checkable group boxes, check toggled signals.
+2. **Tooling & Dock Panes:**
+   - [x] `QToolBar`: Actions, text actions, widget embedding, separators, movable state, `QMainWindow.add_tool_bar`.
+   - [x] `QDockWidget`: Left/Right/Top/Bottom docking areas, embedding custom widgets, `QMainWindow.add_dock_widget`.
+3. **Desktop Dialogs:**
+   - [x] `QColorDialog`: Static color picker (`get_color`) with initial color and custom title.
+   - [x] `QFontDialog`: Static font picker (`get_font`) with family, size, weight, italic styles.
+   - [x] `QInputDialog`: `get_text`, `get_int` (min/max/step), `get_item` (combo selection).
+   - [x] `QProgressDialog`: Asynchronous progress dialog with cancel button and progress tracking.
+4. **Desktop Imaging & Assets:**
+   - [x] `QPixmap`: In-memory pixel buffer, loading from file, dimension inspection, color filling.
+   - [x] `QIcon`: Loading from file, pixmap, or system desktop theme.
+   - [x] `QCursor`: Typed mouse cursors (`Pointing_hand`, `Cross`, `Wait`, `I_beam`, etc.) and unsetting.
+   - [x] `Painter.draw_pixmap`: Blitting pixmaps onto canvas viewports.
+   - [x] Interactive demo: [examples/workbench_demo.ml](file:///home/yotam/source/ocaml/oqt6/examples/workbench_demo.ml).
 
 ---
 
@@ -162,5 +176,7 @@ let ui =
 | :--- | :--- | :--- |
 | **M1: Foundational Proof of Concept** | Core types, phantom subtyping, `QApplication`, `QWidget`, `QPushButton`, `QLabel`, `QLineEdit`, `QVBoxLayout`, `QTimer`, automated test suite, example app | **Completed** |
 | **M2: Complete Common Widgets & Dialogs (Phase 1)** | `QMainWindow`, `QMenuBar`, `QMenu`, `QAction`, `QStatusBar`, `QDialog`, `QMessageBox`, `QFileDialog`, `QCheckBox`, `QRadioButton`, `QComboBox`, `QSpinBox`, `QSlider`, `QProgressBar`, `QTextEdit`, `QGridLayout`, kitchen sink demo | **Completed** |
-| **M3: Event Trampolines & QPainter (Phase 2)** | `OCamlWidget` C++ trampoline class, `paintEvent`, `QPainter`, `QColor`, `QFont`, custom drawing demo | **Next** |
-| **M4: Model / View / Delegate Architecture (Phase 3)** | `QTableView`, `QTreeView`, `QListView`, `QAbstractItemModel` bridge | Planned |
+| **M3: Event Trampolines & QPainter (Phase 2)** | `OCamlWidget` C++ trampoline class, `paintEvent`, `QPainter`, `QColor`, `QFont`, custom drawing demo | **Completed** |
+| **M4: Model / View / Delegate Architecture (Phase 3)** | `QTableView`, `QTreeView`, `QListView`, `QAbstractItemModel` bridge, functional `TableModel` | **Completed** |
+| **M5: Broad Desktop GUI Coverage (Phase 4)** | `QTabWidget`, `QStackedWidget`, `QSplitter`, `QScrollArea`, `QGroupBox`, `QToolBar`, `QDockWidget`, `QPixmap`, `QIcon`, `QCursor`, Dialogs (`QColorDialog`, `QFontDialog`, `QInputDialog`, `QProgressDialog`), Workbench demo | **Completed** |
+| **M6: Declarative Functional UI DSL (Phase 5)** | Declarative tree combinators, reactive state bindings | Planned |

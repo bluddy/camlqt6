@@ -60,12 +60,28 @@ type qabstract_table_model = [ qabstract_item_model | `QAbstractTableModel ]
 type qstandard_item_model = [ qabstract_item_model | `QStandardItemModel ]
 type qocaml_table_model = [ qabstract_table_model | `QOCamlTableModel ]
 
+type dock_area = [ `Left_dock | `Right_dock | `Top_dock | `Bottom_dock ]
+let int_of_dock_area = function
+  | `Left_dock -> 0
+  | `Right_dock -> 1
+  | `Top_dock -> 2
+  | `Bottom_dock -> 3
+
 type qabstract_item_view = [ qwidget | `QAbstractItemView ]
 type qtable_view = [ qabstract_item_view | `QTableView ]
 type qtree_view = [ qabstract_item_view | `QTreeView ]
 type qlist_view = [ qabstract_item_view | `QListView ]
 type qheader_view = [ qwidget | `QHeaderView ]
 type qitem_selection_model = [ Core.qobject | `QItemSelectionModel ]
+
+type qtab_widget = [ qwidget | `QTabWidget ]
+type qstacked_widget = [ qwidget | `QStackedWidget ]
+type qsplitter = [ qwidget | `QSplitter ]
+type qscroll_area = [ qwidget | `QScrollArea ]
+type qgroup_box = [ qwidget | `QGroupBox ]
+type qtool_bar = [ qwidget | `QToolBar ]
+type qdock_widget = [ qwidget | `QDockWidget ]
+type qprogress_dialog = [ qdialog | `QProgressDialog ]
 
 (* Application *)
 external qapp_create : string array option -> qapplication Core.t = "caml_oqt6_qapplication_create"
@@ -125,12 +141,14 @@ end
 external qpushbutton_create : string option -> 'a Core.t option -> qpush_button Core.t = "caml_oqt6_qpushbutton_create"
 external qpushbutton_set_text : 'a Core.t -> string -> unit = "caml_oqt6_qpushbutton_set_text"
 external qpushbutton_text : 'a Core.t -> string = "caml_oqt6_qpushbutton_text"
+external qpushbutton_set_icon : 'a Core.t -> Gui.Icon.t -> unit = "caml_oqt6_qpushbutton_set_icon"
 external qpushbutton_connect_clicked : 'a Core.t -> (unit -> unit) -> unit = "caml_oqt6_qpushbutton_connect_clicked"
 
 module Button = struct
   let create ?text ?parent () = qpushbutton_create text parent
   let set_text = qpushbutton_set_text
   let text = qpushbutton_text
+  let set_icon = qpushbutton_set_icon
   let on_clicked = qpushbutton_connect_clicked
 end
 
@@ -365,6 +383,10 @@ external qmainwindow_central_widget : 'a Core.t -> qwidget Core.t option = "caml
 external qmainwindow_menu_bar : 'a Core.t -> qmenu_bar Core.t = "caml_oqt6_qmainwindow_menu_bar"
 external qmainwindow_status_bar : 'a Core.t -> qstatus_bar Core.t = "caml_oqt6_qmainwindow_status_bar"
 external qmainwindow_set_status_bar : 'a Core.t -> 'b Core.t -> unit = "caml_oqt6_qmainwindow_set_status_bar"
+external qmainwindow_set_window_icon : 'a Core.t -> Gui.Icon.t -> unit = "caml_oqt6_qmainwindow_set_window_icon"
+external qmainwindow_add_toolbar : 'a Core.t -> 'b Core.t -> unit = "caml_oqt6_qmainwindow_add_toolbar"
+external qmainwindow_add_toolbar_title : 'a Core.t -> string -> qtool_bar Core.t = "caml_oqt6_qmainwindow_add_toolbar_title"
+external qmainwindow_add_dockwidget : 'a Core.t -> int -> 'b Core.t -> unit = "caml_oqt6_qmainwindow_add_dockwidget"
 
 module MainWindow = struct
   let create ?parent () = qmainwindow_create parent
@@ -373,6 +395,10 @@ module MainWindow = struct
   let menu_bar = qmainwindow_menu_bar
   let status_bar = qmainwindow_status_bar
   let set_status_bar = qmainwindow_set_status_bar
+  let set_window_icon = qmainwindow_set_window_icon
+  let add_tool_bar = qmainwindow_add_toolbar
+  let add_tool_bar_title = qmainwindow_add_toolbar_title
+  let add_dock_widget win area dw = qmainwindow_add_dockwidget win (int_of_dock_area area) dw
 end
 
 (* MenuBar *)
@@ -405,6 +431,7 @@ end
 external qaction_create : string option -> 'a Core.t option -> qaction Core.t = "caml_oqt6_qaction_create"
 external qaction_set_text : 'a Core.t -> string -> unit = "caml_oqt6_qaction_set_text"
 external qaction_text : 'a Core.t -> string = "caml_oqt6_qaction_text"
+external qaction_set_icon : 'a Core.t -> Gui.Icon.t -> unit = "caml_oqt6_qaction_set_icon"
 external qaction_set_checkable : 'a Core.t -> bool -> unit = "caml_oqt6_qaction_set_checkable"
 external qaction_is_checkable : 'a Core.t -> bool = "caml_oqt6_qaction_is_checkable"
 external qaction_set_checked : 'a Core.t -> bool -> unit = "caml_oqt6_qaction_set_checked"
@@ -418,6 +445,7 @@ module Action = struct
   let create ?text ?parent () = qaction_create text parent
   let set_text = qaction_set_text
   let text = qaction_text
+  let set_icon = qaction_set_icon
   let set_checkable = qaction_set_checkable
   let is_checkable = qaction_is_checkable
   let set_checked = qaction_set_checked
@@ -683,3 +711,189 @@ module ListView = struct
   let selection_model = qlistview_selection_model
   let on_clicked = qlistview_connect_clicked
 end
+
+(* TabWidget *)
+external qtabwidget_create : 'a Core.t option -> qtab_widget Core.t = "caml_oqt6_qtabwidget_create"
+external qtabwidget_add_tab : 'a Core.t -> 'b Core.t -> string -> int = "caml_oqt6_qtabwidget_add_tab"
+external qtabwidget_insert_tab : 'a Core.t -> int -> 'b Core.t -> string -> int = "caml_oqt6_qtabwidget_insert_tab"
+external qtabwidget_remove_tab : 'a Core.t -> int -> unit = "caml_oqt6_qtabwidget_remove_tab"
+external qtabwidget_current_index : 'a Core.t -> int = "caml_oqt6_qtabwidget_current_index"
+external qtabwidget_set_current_index : 'a Core.t -> int -> unit = "caml_oqt6_qtabwidget_set_current_index"
+external qtabwidget_count : 'a Core.t -> int = "caml_oqt6_qtabwidget_count"
+external qtabwidget_tab_text : 'a Core.t -> int -> string = "caml_oqt6_qtabwidget_tab_text"
+external qtabwidget_set_tab_text : 'a Core.t -> int -> string -> unit = "caml_oqt6_qtabwidget_set_tab_text"
+external qtabwidget_set_tabs_closable : 'a Core.t -> bool -> unit = "caml_oqt6_qtabwidget_set_tabs_closable"
+external qtabwidget_set_movable : 'a Core.t -> bool -> unit = "caml_oqt6_qtabwidget_set_movable"
+external qtabwidget_set_tab_icon : 'a Core.t -> int -> Gui.Icon.t -> unit = "caml_oqt6_qtabwidget_set_tab_icon"
+external qtabwidget_connect_current_changed : 'a Core.t -> (int -> unit) -> unit = "caml_oqt6_qtabwidget_connect_current_changed"
+external qtabwidget_connect_tab_close_requested : 'a Core.t -> (int -> unit) -> unit = "caml_oqt6_qtabwidget_connect_tab_close_requested"
+
+module TabWidget = struct
+  let create ?parent () = qtabwidget_create parent
+  let add_tab tw ~label w = qtabwidget_add_tab tw w label
+  let insert_tab tw ~index ~label w = qtabwidget_insert_tab tw index w label
+  let remove_tab = qtabwidget_remove_tab
+  let current_index = qtabwidget_current_index
+  let set_current_index = qtabwidget_set_current_index
+  let count = qtabwidget_count
+  let tab_text = qtabwidget_tab_text
+  let set_tab_text = qtabwidget_set_tab_text
+  let set_tabs_closable = qtabwidget_set_tabs_closable
+  let set_movable = qtabwidget_set_movable
+  let set_tab_icon = qtabwidget_set_tab_icon
+  let on_current_changed = qtabwidget_connect_current_changed
+  let on_tab_close_requested = qtabwidget_connect_tab_close_requested
+end
+
+(* StackedWidget *)
+external qstackedwidget_create : 'a Core.t option -> qstacked_widget Core.t = "caml_oqt6_qstackedwidget_create"
+external qstackedwidget_add_widget : 'a Core.t -> 'b Core.t -> int = "caml_oqt6_qstackedwidget_add_widget"
+external qstackedwidget_remove_widget : 'a Core.t -> 'b Core.t -> unit = "caml_oqt6_qstackedwidget_remove_widget"
+external qstackedwidget_current_index : 'a Core.t -> int = "caml_oqt6_qstackedwidget_current_index"
+external qstackedwidget_set_current_index : 'a Core.t -> int -> unit = "caml_oqt6_qstackedwidget_set_current_index"
+external qstackedwidget_count : 'a Core.t -> int = "caml_oqt6_qstackedwidget_count"
+external qstackedwidget_connect_current_changed : 'a Core.t -> (int -> unit) -> unit = "caml_oqt6_qstackedwidget_connect_current_changed"
+
+module StackedWidget = struct
+  let create ?parent () = qstackedwidget_create parent
+  let add_widget = qstackedwidget_add_widget
+  let remove_widget = qstackedwidget_remove_widget
+  let current_index = qstackedwidget_current_index
+  let set_current_index = qstackedwidget_set_current_index
+  let count = qstackedwidget_count
+  let on_current_changed = qstackedwidget_connect_current_changed
+end
+
+(* Splitter *)
+external qsplitter_create : int option -> 'a Core.t option -> qsplitter Core.t = "caml_oqt6_qsplitter_create"
+external qsplitter_add_widget : 'a Core.t -> 'b Core.t -> unit = "caml_oqt6_qsplitter_add_widget"
+external qsplitter_set_orientation : 'a Core.t -> int -> unit = "caml_oqt6_qsplitter_set_orientation"
+external qsplitter_orientation : 'a Core.t -> int = "caml_oqt6_qsplitter_orientation"
+external qsplitter_set_sizes : 'a Core.t -> int list -> unit = "caml_oqt6_qsplitter_set_sizes"
+external qsplitter_sizes : 'a Core.t -> int list = "caml_oqt6_qsplitter_sizes"
+external qsplitter_set_stretch_factor : 'a Core.t -> int -> int -> unit = "caml_oqt6_qsplitter_set_stretch_factor"
+
+module Splitter = struct
+  let create ?orientation ?parent () =
+    let o = Option.map int_of_orientation orientation in
+    qsplitter_create o parent
+  let add_widget = qsplitter_add_widget
+  let set_orientation s o = qsplitter_set_orientation s (int_of_orientation o)
+  let orientation s =
+    match qsplitter_orientation s with
+    | 1 -> `Vertical
+    | _ -> `Horizontal
+  let set_sizes = qsplitter_set_sizes
+  let sizes = qsplitter_sizes
+  let set_stretch_factor s ~index ~stretch = qsplitter_set_stretch_factor s index stretch
+end
+
+(* ScrollArea *)
+external qscrollarea_create : 'a Core.t option -> qscroll_area Core.t = "caml_oqt6_qscrollarea_create"
+external qscrollarea_set_widget : 'a Core.t -> 'b Core.t -> unit = "caml_oqt6_qscrollarea_set_widget"
+external qscrollarea_widget : 'a Core.t -> qwidget Core.t option = "caml_oqt6_qscrollarea_widget"
+external qscrollarea_set_widget_resizable : 'a Core.t -> bool -> unit = "caml_oqt6_qscrollarea_set_widget_resizable"
+external qscrollarea_is_widget_resizable : 'a Core.t -> bool = "caml_oqt6_qscrollarea_is_widget_resizable"
+
+module ScrollArea = struct
+  let create ?parent () = qscrollarea_create parent
+  let set_widget = qscrollarea_set_widget
+  let widget = qscrollarea_widget
+  let set_widget_resizable = qscrollarea_set_widget_resizable
+  let is_widget_resizable = qscrollarea_is_widget_resizable
+end
+
+(* GroupBox *)
+external qgroupbox_create : string option -> 'a Core.t option -> qgroup_box Core.t = "caml_oqt6_qgroupbox_create"
+external qgroupbox_title : 'a Core.t -> string = "caml_oqt6_qgroupbox_title"
+external qgroupbox_set_title : 'a Core.t -> string -> unit = "caml_oqt6_qgroupbox_set_title"
+external qgroupbox_is_checkable : 'a Core.t -> bool = "caml_oqt6_qgroupbox_is_checkable"
+external qgroupbox_set_checkable : 'a Core.t -> bool -> unit = "caml_oqt6_qgroupbox_set_checkable"
+external qgroupbox_is_checked : 'a Core.t -> bool = "caml_oqt6_qgroupbox_is_checked"
+external qgroupbox_set_checked : 'a Core.t -> bool -> unit = "caml_oqt6_qgroupbox_set_checked"
+external qgroupbox_connect_toggled : 'a Core.t -> (bool -> unit) -> unit = "caml_oqt6_qgroupbox_connect_toggled"
+
+module GroupBox = struct
+  let create ?title ?parent () = qgroupbox_create title parent
+  let title = qgroupbox_title
+  let set_title = qgroupbox_set_title
+  let is_checkable = qgroupbox_is_checkable
+  let set_checkable = qgroupbox_set_checkable
+  let is_checked = qgroupbox_is_checked
+  let set_checked = qgroupbox_set_checked
+  let on_toggled = qgroupbox_connect_toggled
+end
+
+(* ToolBar *)
+external qtoolbar_create : string option -> 'a Core.t option -> qtool_bar Core.t = "caml_oqt6_qtoolbar_create"
+external qtoolbar_add_action : 'a Core.t -> 'b Core.t -> unit = "caml_oqt6_qtoolbar_add_action"
+external qtoolbar_add_action_text : 'a Core.t -> string -> qaction Core.t = "caml_oqt6_qtoolbar_add_action_text"
+external qtoolbar_add_widget : 'a Core.t -> 'b Core.t -> unit = "caml_oqt6_qtoolbar_add_widget"
+external qtoolbar_add_separator : 'a Core.t -> unit = "caml_oqt6_qtoolbar_add_separator"
+external qtoolbar_set_movable : 'a Core.t -> bool -> unit = "caml_oqt6_qtoolbar_set_movable"
+external qtoolbar_is_movable : 'a Core.t -> bool = "caml_oqt6_qtoolbar_is_movable"
+
+module ToolBar = struct
+  let create ?title ?parent () = qtoolbar_create title parent
+  let add_action = qtoolbar_add_action
+  let add_action_text = qtoolbar_add_action_text
+  let add_widget = qtoolbar_add_widget
+  let add_separator = qtoolbar_add_separator
+  let set_movable = qtoolbar_set_movable
+  let is_movable = qtoolbar_is_movable
+end
+
+(* DockWidget *)
+external qdockwidget_create : string option -> 'a Core.t option -> qdock_widget Core.t = "caml_oqt6_qdockwidget_create"
+external qdockwidget_set_widget : 'a Core.t -> 'b Core.t -> unit = "caml_oqt6_qdockwidget_set_widget"
+external qdockwidget_widget : 'a Core.t -> qwidget Core.t option = "caml_oqt6_qdockwidget_widget"
+
+module DockWidget = struct
+  let create ?title ?parent () = qdockwidget_create title parent
+  let set_widget = qdockwidget_set_widget
+  let widget = qdockwidget_widget
+end
+
+(* ColorDialog *)
+external qcolordialog_get_color : 'a Core.t option -> Gui.Color.t option -> string option -> Gui.Color.t option = "caml_oqt6_qcolordialog_get_color"
+
+module ColorDialog = struct
+  let get_color ?parent ?initial ?title () = qcolordialog_get_color parent initial title
+end
+
+(* FontDialog *)
+external qfontdialog_get_font : 'a Core.t option -> Gui.Font.t option -> string option -> Gui.Font.t option = "caml_oqt6_qfontdialog_get_font"
+
+module FontDialog = struct
+  let get_font ?parent ?initial ?title () = qfontdialog_get_font parent initial title
+end
+
+(* InputDialog *)
+external qinputdialog_get_text : 'a Core.t option -> string -> string -> string option -> string option = "caml_oqt6_qinputdialog_get_text"
+external qinputdialog_get_int : 'a Core.t option -> string -> string -> int option -> int option -> int option -> int option -> int option = "caml_oqt6_qinputdialog_get_int_byte" "caml_oqt6_qinputdialog_get_int"
+external qinputdialog_get_item : 'a Core.t option -> string -> string -> string list -> int option -> bool option -> string option = "caml_oqt6_qinputdialog_get_item_byte" "caml_oqt6_qinputdialog_get_item"
+
+module InputDialog = struct
+  let get_text ?parent ~title ~label ?initial () = qinputdialog_get_text parent title label initial
+  let get_int ?parent ~title ~label ?value ?min ?max ?step () = qinputdialog_get_int parent title label value min max step
+  let get_item ?parent ~title ~label ~items ?current ?editable () = qinputdialog_get_item parent title label items current editable
+end
+
+(* ProgressDialog *)
+external qprogressdialog_create : string -> string -> int -> int -> 'a Core.t option -> qprogress_dialog Core.t = "caml_oqt6_qprogressdialog_create"
+external qprogressdialog_set_value : 'a Core.t -> int -> unit = "caml_oqt6_qprogressdialog_set_value"
+external qprogressdialog_value : 'a Core.t -> int = "caml_oqt6_qprogressdialog_value"
+external qprogressdialog_was_canceled : 'a Core.t -> bool = "caml_oqt6_qprogressdialog_was_canceled"
+external qprogressdialog_cancel : 'a Core.t -> unit = "caml_oqt6_qprogressdialog_cancel"
+external qprogressdialog_set_range : 'a Core.t -> int -> int -> unit = "caml_oqt6_qprogressdialog_set_range"
+
+module ProgressDialog = struct
+  let create ~label_text ~cancel_button_text ~min ~max ?parent () =
+    qprogressdialog_create label_text cancel_button_text min max parent
+  let set_value = qprogressdialog_set_value
+  let value = qprogressdialog_value
+  let was_canceled = qprogressdialog_was_canceled
+  let cancel = qprogressdialog_cancel
+  let set_range pd ~min ~max = qprogressdialog_set_range pd min max
+end
+

@@ -45,6 +45,20 @@
 #include <QModelIndex>
 #include <QStringList>
 #include <QList>
+#include <QTabWidget>
+#include <QStackedWidget>
+#include <QSplitter>
+#include <QScrollArea>
+#include <QGroupBox>
+#include <QToolBar>
+#include <QDockWidget>
+#include <QColorDialog>
+#include <QFontDialog>
+#include <QInputDialog>
+#include <QProgressDialog>
+#include <QPixmap>
+#include <QIcon>
+#include <QCursor>
 #include <new>
 
 #include <cstring>
@@ -186,6 +200,54 @@ static value alloc_brush(const QBrush& b) {
 }
 
 #define Brush_val(v) (*((QBrush*)Data_custom_val(v)))
+
+// QPixmap custom operations
+static void finalize_pixmap(value v) {
+    ((QPixmap*)Data_custom_val(v))->~QPixmap();
+}
+
+static struct custom_operations pixmap_custom_ops = {
+    (char*)"org.oqt6.qpixmap",
+    finalize_pixmap,
+    custom_compare_default,
+    custom_hash_default,
+    custom_serialize_default,
+    custom_deserialize_default,
+    custom_compare_ext_default,
+    custom_fixed_length_default
+};
+
+static value alloc_pixmap(const QPixmap& p) {
+    value v = caml_alloc_custom(&pixmap_custom_ops, sizeof(QPixmap), 0, 1);
+    new (Data_custom_val(v)) QPixmap(p);
+    return v;
+}
+
+#define Pixmap_val(v) (*((QPixmap*)Data_custom_val(v)))
+
+// QIcon custom operations
+static void finalize_icon(value v) {
+    ((QIcon*)Data_custom_val(v))->~QIcon();
+}
+
+static struct custom_operations icon_custom_ops = {
+    (char*)"org.oqt6.qicon",
+    finalize_icon,
+    custom_compare_default,
+    custom_hash_default,
+    custom_serialize_default,
+    custom_deserialize_default,
+    custom_compare_ext_default,
+    custom_fixed_length_default
+};
+
+static value alloc_icon(const QIcon& ic) {
+    value v = caml_alloc_custom(&icon_custom_ops, sizeof(QIcon), 0, 1);
+    new (Data_custom_val(v)) QIcon(ic);
+    return v;
+}
+
+#define Icon_val(v) (*((QIcon*)Data_custom_val(v)))
 
 // QPainter holder
 struct OCamlPainterHolder {
@@ -2816,6 +2878,800 @@ CAMLprim value caml_oqt6_qitemselectionmodel_connect_current_changed(value v_s, 
     });
     connect_root_cleanup(s, root);
 
+    CAMLreturn(Val_unit);
+}
+
+/* Helpers */
+static Qt::CursorShape get_cursor_shape(int shape) {
+    switch (shape) {
+        case 0: return Qt::ArrowCursor;
+        case 1: return Qt::UpArrowCursor;
+        case 2: return Qt::CrossCursor;
+        case 3: return Qt::WaitCursor;
+        case 4: return Qt::IBeamCursor;
+        case 5: return Qt::SizeVerCursor;
+        case 6: return Qt::SizeHorCursor;
+        case 7: return Qt::SizeBDiagCursor;
+        case 8: return Qt::SizeFDiagCursor;
+        case 9: return Qt::SizeAllCursor;
+        case 10: return Qt::BlankCursor;
+        case 11: return Qt::SplitVCursor;
+        case 12: return Qt::SplitHCursor;
+        case 13: return Qt::PointingHandCursor;
+        case 14: return Qt::ForbiddenCursor;
+        case 15: return Qt::OpenHandCursor;
+        case 16: return Qt::ClosedHandCursor;
+        default: return Qt::ArrowCursor;
+    }
+}
+
+static Qt::DockWidgetArea get_dock_area(int area) {
+    switch (area) {
+        case 0: return Qt::LeftDockWidgetArea;
+        case 1: return Qt::RightDockWidgetArea;
+        case 2: return Qt::TopDockWidgetArea;
+        case 3: return Qt::BottomDockWidgetArea;
+        default: return Qt::LeftDockWidgetArea;
+    }
+}
+
+/* QTabWidget primitives */
+
+CAMLprim value caml_oqt6_qtabwidget_create(value v_parent) {
+    CAMLparam1(v_parent);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    QTabWidget* tw = new QTabWidget(parent);
+    CAMLreturn(alloc_qobject(tw, !Is_block(v_parent)));
+}
+
+CAMLprim value caml_oqt6_qtabwidget_add_tab(value v_tw, value v_w, value v_label) {
+    CAMLparam3(v_tw, v_w, v_label);
+    QTabWidget* tw = get_qobject<QTabWidget>(v_tw);
+    QWidget* w = get_qobject<QWidget>(v_w);
+    int idx = tw->addTab(w, QString::fromUtf8(String_val(v_label)));
+    mark_parented(v_w);
+    CAMLreturn(Val_int(idx));
+}
+
+CAMLprim value caml_oqt6_qtabwidget_insert_tab(value v_tw, value v_idx, value v_w, value v_label) {
+    CAMLparam4(v_tw, v_idx, v_w, v_label);
+    QTabWidget* tw = get_qobject<QTabWidget>(v_tw);
+    QWidget* w = get_qobject<QWidget>(v_w);
+    int idx = tw->insertTab(Int_val(v_idx), w, QString::fromUtf8(String_val(v_label)));
+    mark_parented(v_w);
+    CAMLreturn(Val_int(idx));
+}
+
+CAMLprim value caml_oqt6_qtabwidget_remove_tab(value v_tw, value v_idx) {
+    CAMLparam2(v_tw, v_idx);
+    QTabWidget* tw = get_qobject<QTabWidget>(v_tw);
+    tw->removeTab(Int_val(v_idx));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtabwidget_current_index(value v_tw) {
+    CAMLparam1(v_tw);
+    QTabWidget* tw = get_qobject<QTabWidget>(v_tw);
+    CAMLreturn(Val_int(tw->currentIndex()));
+}
+
+CAMLprim value caml_oqt6_qtabwidget_set_current_index(value v_tw, value v_idx) {
+    CAMLparam2(v_tw, v_idx);
+    QTabWidget* tw = get_qobject<QTabWidget>(v_tw);
+    tw->setCurrentIndex(Int_val(v_idx));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtabwidget_count(value v_tw) {
+    CAMLparam1(v_tw);
+    QTabWidget* tw = get_qobject<QTabWidget>(v_tw);
+    CAMLreturn(Val_int(tw->count()));
+}
+
+CAMLprim value caml_oqt6_qtabwidget_tab_text(value v_tw, value v_idx) {
+    CAMLparam2(v_tw, v_idx);
+    QTabWidget* tw = get_qobject<QTabWidget>(v_tw);
+    QByteArray utf8 = tw->tabText(Int_val(v_idx)).toUtf8();
+    CAMLreturn(caml_copy_string(utf8.constData()));
+}
+
+CAMLprim value caml_oqt6_qtabwidget_set_tab_text(value v_tw, value v_idx, value v_txt) {
+    CAMLparam3(v_tw, v_idx, v_txt);
+    QTabWidget* tw = get_qobject<QTabWidget>(v_tw);
+    tw->setTabText(Int_val(v_idx), QString::fromUtf8(String_val(v_txt)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtabwidget_set_tabs_closable(value v_tw, value v_b) {
+    CAMLparam2(v_tw, v_b);
+    QTabWidget* tw = get_qobject<QTabWidget>(v_tw);
+    tw->setTabsClosable(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtabwidget_set_movable(value v_tw, value v_b) {
+    CAMLparam2(v_tw, v_b);
+    QTabWidget* tw = get_qobject<QTabWidget>(v_tw);
+    tw->setMovable(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtabwidget_set_tab_icon(value v_tw, value v_idx, value v_ic) {
+    CAMLparam3(v_tw, v_idx, v_ic);
+    QTabWidget* tw = get_qobject<QTabWidget>(v_tw);
+    tw->setTabIcon(Int_val(v_idx), Icon_val(v_ic));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtabwidget_connect_current_changed(value v_tw, value v_cb) {
+    CAMLparam2(v_tw, v_cb);
+    QTabWidget* tw = get_qobject<QTabWidget>(v_tw);
+    value* root = new value;
+    *root = v_cb;
+    caml_register_global_root(root);
+
+    QObject::connect(tw, &QTabWidget::currentChanged, [root](int index) {
+        CamlDomainLockGuard guard;
+        caml_callback_exn(*root, Val_int(index));
+    });
+    connect_root_cleanup(tw, root);
+
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtabwidget_connect_tab_close_requested(value v_tw, value v_cb) {
+    CAMLparam2(v_tw, v_cb);
+    QTabWidget* tw = get_qobject<QTabWidget>(v_tw);
+    value* root = new value;
+    *root = v_cb;
+    caml_register_global_root(root);
+
+    QObject::connect(tw, &QTabWidget::tabCloseRequested, [root](int index) {
+        CamlDomainLockGuard guard;
+        caml_callback_exn(*root, Val_int(index));
+    });
+    connect_root_cleanup(tw, root);
+
+    CAMLreturn(Val_unit);
+}
+
+/* QStackedWidget primitives */
+
+CAMLprim value caml_oqt6_qstackedwidget_create(value v_parent) {
+    CAMLparam1(v_parent);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    QStackedWidget* sw = new QStackedWidget(parent);
+    CAMLreturn(alloc_qobject(sw, !Is_block(v_parent)));
+}
+
+CAMLprim value caml_oqt6_qstackedwidget_add_widget(value v_sw, value v_w) {
+    CAMLparam2(v_sw, v_w);
+    QStackedWidget* sw = get_qobject<QStackedWidget>(v_sw);
+    QWidget* w = get_qobject<QWidget>(v_w);
+    int idx = sw->addWidget(w);
+    mark_parented(v_w);
+    CAMLreturn(Val_int(idx));
+}
+
+CAMLprim value caml_oqt6_qstackedwidget_remove_widget(value v_sw, value v_w) {
+    CAMLparam2(v_sw, v_w);
+    QStackedWidget* sw = get_qobject<QStackedWidget>(v_sw);
+    QWidget* w = get_qobject<QWidget>(v_w);
+    sw->removeWidget(w);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qstackedwidget_current_index(value v_sw) {
+    CAMLparam1(v_sw);
+    QStackedWidget* sw = get_qobject<QStackedWidget>(v_sw);
+    CAMLreturn(Val_int(sw->currentIndex()));
+}
+
+CAMLprim value caml_oqt6_qstackedwidget_set_current_index(value v_sw, value v_idx) {
+    CAMLparam2(v_sw, v_idx);
+    QStackedWidget* sw = get_qobject<QStackedWidget>(v_sw);
+    sw->setCurrentIndex(Int_val(v_idx));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qstackedwidget_count(value v_sw) {
+    CAMLparam1(v_sw);
+    QStackedWidget* sw = get_qobject<QStackedWidget>(v_sw);
+    CAMLreturn(Val_int(sw->count()));
+}
+
+CAMLprim value caml_oqt6_qstackedwidget_connect_current_changed(value v_sw, value v_cb) {
+    CAMLparam2(v_sw, v_cb);
+    QStackedWidget* sw = get_qobject<QStackedWidget>(v_sw);
+    value* root = new value;
+    *root = v_cb;
+    caml_register_global_root(root);
+
+    QObject::connect(sw, &QStackedWidget::currentChanged, [root](int index) {
+        CamlDomainLockGuard guard;
+        caml_callback_exn(*root, Val_int(index));
+    });
+    connect_root_cleanup(sw, root);
+
+    CAMLreturn(Val_unit);
+}
+
+/* QSplitter primitives */
+
+CAMLprim value caml_oqt6_qsplitter_create(value v_orient, value v_parent) {
+    CAMLparam2(v_orient, v_parent);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    Qt::Orientation o = (Is_block(v_orient) && Int_val(Field(v_orient, 0)) == 1) ? Qt::Vertical : Qt::Horizontal;
+    QSplitter* sp = new QSplitter(o, parent);
+    CAMLreturn(alloc_qobject(sp, !Is_block(v_parent)));
+}
+
+CAMLprim value caml_oqt6_qsplitter_add_widget(value v_sp, value v_w) {
+    CAMLparam2(v_sp, v_w);
+    QSplitter* sp = get_qobject<QSplitter>(v_sp);
+    QWidget* w = get_qobject<QWidget>(v_w);
+    sp->addWidget(w);
+    mark_parented(v_w);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qsplitter_set_orientation(value v_sp, value v_orient) {
+    CAMLparam2(v_sp, v_orient);
+    QSplitter* sp = get_qobject<QSplitter>(v_sp);
+    sp->setOrientation(Int_val(v_orient) == 1 ? Qt::Vertical : Qt::Horizontal);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qsplitter_orientation(value v_sp) {
+    CAMLparam1(v_sp);
+    QSplitter* sp = get_qobject<QSplitter>(v_sp);
+    CAMLreturn(Val_int(sp->orientation() == Qt::Vertical ? 1 : 0));
+}
+
+CAMLprim value caml_oqt6_qsplitter_set_sizes(value v_sp, value v_sizes) {
+    CAMLparam2(v_sp, v_sizes);
+    QSplitter* sp = get_qobject<QSplitter>(v_sp);
+    QList<int> sizes;
+    value cur = v_sizes;
+    while (Is_block(cur)) {
+        sizes.append(Int_val(Field(cur, 0)));
+        cur = Field(cur, 1);
+    }
+    sp->setSizes(sizes);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qsplitter_sizes(value v_sp) {
+    CAMLparam1(v_sp);
+    CAMLlocal2(list, cons);
+    QSplitter* sp = get_qobject<QSplitter>(v_sp);
+    QList<int> sizes = sp->sizes();
+    list = Val_emptylist;
+    for (int i = sizes.size() - 1; i >= 0; --i) {
+        cons = caml_alloc(2, 0);
+        Store_field(cons, 0, Val_int(sizes[i]));
+        Store_field(cons, 1, list);
+        list = cons;
+    }
+    CAMLreturn(list);
+}
+
+CAMLprim value caml_oqt6_qsplitter_set_stretch_factor(value v_sp, value v_idx, value v_stretch) {
+    CAMLparam3(v_sp, v_idx, v_stretch);
+    QSplitter* sp = get_qobject<QSplitter>(v_sp);
+    sp->setStretchFactor(Int_val(v_idx), Int_val(v_stretch));
+    CAMLreturn(Val_unit);
+}
+
+/* QScrollArea primitives */
+
+CAMLprim value caml_oqt6_qscrollarea_create(value v_parent) {
+    CAMLparam1(v_parent);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    QScrollArea* sa = new QScrollArea(parent);
+    CAMLreturn(alloc_qobject(sa, !Is_block(v_parent)));
+}
+
+CAMLprim value caml_oqt6_qscrollarea_set_widget(value v_sa, value v_w) {
+    CAMLparam2(v_sa, v_w);
+    QScrollArea* sa = get_qobject<QScrollArea>(v_sa);
+    QWidget* w = get_qobject<QWidget>(v_w);
+    sa->setWidget(w);
+    mark_parented(v_w);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qscrollarea_widget(value v_sa) {
+    CAMLparam1(v_sa);
+    QScrollArea* sa = get_qobject<QScrollArea>(v_sa);
+    QWidget* w = sa->widget();
+    if (!w) {
+        CAMLreturn(Val_int(0));
+    }
+    value some = caml_alloc(1, 0);
+    Store_field(some, 0, alloc_qobject(w, false));
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_qscrollarea_set_widget_resizable(value v_sa, value v_b) {
+    CAMLparam2(v_sa, v_b);
+    QScrollArea* sa = get_qobject<QScrollArea>(v_sa);
+    sa->setWidgetResizable(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qscrollarea_is_widget_resizable(value v_sa) {
+    CAMLparam1(v_sa);
+    QScrollArea* sa = get_qobject<QScrollArea>(v_sa);
+    CAMLreturn(Val_bool(sa->widgetResizable()));
+}
+
+/* QGroupBox primitives */
+
+CAMLprim value caml_oqt6_qgroupbox_create(value v_title, value v_parent) {
+    CAMLparam2(v_title, v_parent);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    QGroupBox* gb = new QGroupBox(parent);
+    if (Is_block(v_title)) {
+        gb->setTitle(QString::fromUtf8(String_val(Field(v_title, 0))));
+    }
+    CAMLreturn(alloc_qobject(gb, !Is_block(v_parent)));
+}
+
+CAMLprim value caml_oqt6_qgroupbox_title(value v_gb) {
+    CAMLparam1(v_gb);
+    QGroupBox* gb = get_qobject<QGroupBox>(v_gb);
+    QByteArray utf8 = gb->title().toUtf8();
+    CAMLreturn(caml_copy_string(utf8.constData()));
+}
+
+CAMLprim value caml_oqt6_qgroupbox_set_title(value v_gb, value v_title) {
+    CAMLparam2(v_gb, v_title);
+    QGroupBox* gb = get_qobject<QGroupBox>(v_gb);
+    gb->setTitle(QString::fromUtf8(String_val(v_title)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qgroupbox_is_checkable(value v_gb) {
+    CAMLparam1(v_gb);
+    QGroupBox* gb = get_qobject<QGroupBox>(v_gb);
+    CAMLreturn(Val_bool(gb->isCheckable()));
+}
+
+CAMLprim value caml_oqt6_qgroupbox_set_checkable(value v_gb, value v_b) {
+    CAMLparam2(v_gb, v_b);
+    QGroupBox* gb = get_qobject<QGroupBox>(v_gb);
+    gb->setCheckable(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qgroupbox_is_checked(value v_gb) {
+    CAMLparam1(v_gb);
+    QGroupBox* gb = get_qobject<QGroupBox>(v_gb);
+    CAMLreturn(Val_bool(gb->isChecked()));
+}
+
+CAMLprim value caml_oqt6_qgroupbox_set_checked(value v_gb, value v_b) {
+    CAMLparam2(v_gb, v_b);
+    QGroupBox* gb = get_qobject<QGroupBox>(v_gb);
+    gb->setChecked(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qgroupbox_connect_toggled(value v_gb, value v_cb) {
+    CAMLparam2(v_gb, v_cb);
+    QGroupBox* gb = get_qobject<QGroupBox>(v_gb);
+    value* root = new value;
+    *root = v_cb;
+    caml_register_global_root(root);
+
+    QObject::connect(gb, &QGroupBox::toggled, [root](bool on) {
+        CamlDomainLockGuard guard;
+        caml_callback_exn(*root, Val_bool(on));
+    });
+    connect_root_cleanup(gb, root);
+
+    CAMLreturn(Val_unit);
+}
+
+/* QToolBar primitives */
+
+CAMLprim value caml_oqt6_qtoolbar_create(value v_title, value v_parent) {
+    CAMLparam2(v_title, v_parent);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    QToolBar* tb = new QToolBar(parent);
+    if (Is_block(v_title)) {
+        tb->setWindowTitle(QString::fromUtf8(String_val(Field(v_title, 0))));
+    }
+    CAMLreturn(alloc_qobject(tb, !Is_block(v_parent)));
+}
+
+CAMLprim value caml_oqt6_qtoolbar_add_action(value v_tb, value v_act) {
+    CAMLparam2(v_tb, v_act);
+    QToolBar* tb = get_qobject<QToolBar>(v_tb);
+    QAction* act = get_qobject<QAction>(v_act);
+    tb->addAction(act);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtoolbar_add_action_text(value v_tb, value v_txt) {
+    CAMLparam2(v_tb, v_txt);
+    QToolBar* tb = get_qobject<QToolBar>(v_tb);
+    QAction* act = tb->addAction(QString::fromUtf8(String_val(v_txt)));
+    CAMLreturn(alloc_qobject(act, false));
+}
+
+CAMLprim value caml_oqt6_qtoolbar_add_widget(value v_tb, value v_w) {
+    CAMLparam2(v_tb, v_w);
+    QToolBar* tb = get_qobject<QToolBar>(v_tb);
+    QWidget* w = get_qobject<QWidget>(v_w);
+    tb->addWidget(w);
+    mark_parented(v_w);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtoolbar_add_separator(value v_tb) {
+    CAMLparam1(v_tb);
+    QToolBar* tb = get_qobject<QToolBar>(v_tb);
+    tb->addSeparator();
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtoolbar_set_movable(value v_tb, value v_b) {
+    CAMLparam2(v_tb, v_b);
+    QToolBar* tb = get_qobject<QToolBar>(v_tb);
+    tb->setMovable(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtoolbar_is_movable(value v_tb) {
+    CAMLparam1(v_tb);
+    QToolBar* tb = get_qobject<QToolBar>(v_tb);
+    CAMLreturn(Val_bool(tb->isMovable()));
+}
+
+CAMLprim value caml_oqt6_qmainwindow_add_toolbar(value v_win, value v_tb) {
+    CAMLparam2(v_win, v_tb);
+    QMainWindow* win = get_qobject<QMainWindow>(v_win);
+    QToolBar* tb = get_qobject<QToolBar>(v_tb);
+    win->addToolBar(tb);
+    mark_parented(v_tb);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qmainwindow_add_toolbar_title(value v_win, value v_title) {
+    CAMLparam2(v_win, v_title);
+    QMainWindow* win = get_qobject<QMainWindow>(v_win);
+    QToolBar* tb = win->addToolBar(QString::fromUtf8(String_val(v_title)));
+    CAMLreturn(alloc_qobject(tb, false));
+}
+
+/* QDockWidget primitives */
+
+CAMLprim value caml_oqt6_qdockwidget_create(value v_title, value v_parent) {
+    CAMLparam2(v_title, v_parent);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    QDockWidget* dw = new QDockWidget(parent);
+    if (Is_block(v_title)) {
+        dw->setWindowTitle(QString::fromUtf8(String_val(Field(v_title, 0))));
+    }
+    CAMLreturn(alloc_qobject(dw, !Is_block(v_parent)));
+}
+
+CAMLprim value caml_oqt6_qdockwidget_set_widget(value v_dw, value v_w) {
+    CAMLparam2(v_dw, v_w);
+    QDockWidget* dw = get_qobject<QDockWidget>(v_dw);
+    QWidget* w = get_qobject<QWidget>(v_w);
+    dw->setWidget(w);
+    mark_parented(v_w);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qdockwidget_widget(value v_dw) {
+    CAMLparam1(v_dw);
+    QDockWidget* dw = get_qobject<QDockWidget>(v_dw);
+    QWidget* w = dw->widget();
+    if (!w) {
+        CAMLreturn(Val_int(0));
+    }
+    value some = caml_alloc(1, 0);
+    Store_field(some, 0, alloc_qobject(w, false));
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_qmainwindow_add_dockwidget(value v_win, value v_area, value v_dw) {
+    CAMLparam3(v_win, v_area, v_dw);
+    QMainWindow* win = get_qobject<QMainWindow>(v_win);
+    QDockWidget* dw = get_qobject<QDockWidget>(v_dw);
+    win->addDockWidget(get_dock_area(Int_val(v_area)), dw);
+    mark_parented(v_dw);
+    CAMLreturn(Val_unit);
+}
+
+/* QColorDialog, QFontDialog, QInputDialog, QProgressDialog primitives */
+
+CAMLprim value caml_oqt6_qcolordialog_get_color(value v_parent, value v_initial, value v_title) {
+    CAMLparam3(v_parent, v_initial, v_title);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    QColor initial = Is_block(v_initial) ? QColor_val(Field(v_initial, 0)) : Qt::white;
+    QString title = Is_block(v_title) ? QString::fromUtf8(String_val(Field(v_title, 0))) : QString();
+
+    thread_domain_lock_depth--;
+    caml_release_runtime_system();
+    QColor res = QColorDialog::getColor(initial, parent, title);
+    caml_acquire_runtime_system();
+    thread_domain_lock_depth++;
+
+    if (!res.isValid()) {
+        CAMLreturn(Val_int(0));
+    }
+    value some = caml_alloc(1, 0);
+    Store_field(some, 0, alloc_color(res));
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_qfontdialog_get_font(value v_parent, value v_initial, value v_title) {
+    CAMLparam3(v_parent, v_initial, v_title);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    QFont initial = Is_block(v_initial) ? Font_val(Field(v_initial, 0)) : QFont();
+    QString title = Is_block(v_title) ? QString::fromUtf8(String_val(Field(v_title, 0))) : QString();
+
+    bool ok = false;
+    thread_domain_lock_depth--;
+    caml_release_runtime_system();
+    QFont res = QFontDialog::getFont(&ok, initial, parent, title);
+    caml_acquire_runtime_system();
+    thread_domain_lock_depth++;
+
+    if (!ok) {
+        CAMLreturn(Val_int(0));
+    }
+    value some = caml_alloc(1, 0);
+    Store_field(some, 0, alloc_font(res));
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_qinputdialog_get_text(value v_parent, value v_title, value v_label, value v_initial) {
+    CAMLparam4(v_parent, v_title, v_label, v_initial);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    QString title = QString::fromUtf8(String_val(v_title));
+    QString label = QString::fromUtf8(String_val(v_label));
+    QString initial = Is_block(v_initial) ? QString::fromUtf8(String_val(Field(v_initial, 0))) : QString();
+
+    bool ok = false;
+    thread_domain_lock_depth--;
+    caml_release_runtime_system();
+    QString res = QInputDialog::getText(parent, title, label, QLineEdit::Normal, initial, &ok);
+    caml_acquire_runtime_system();
+    thread_domain_lock_depth++;
+
+    if (!ok) {
+        CAMLreturn(Val_int(0));
+    }
+    value some = caml_alloc(1, 0);
+    QByteArray utf8 = res.toUtf8();
+    Store_field(some, 0, caml_copy_string(utf8.constData()));
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_qinputdialog_get_int(value v_parent, value v_title, value v_label, value v_val, value v_min, value v_max, value v_step) {
+    CAMLparam5(v_parent, v_title, v_label, v_val, v_min);
+    CAMLxparam2(v_max, v_step);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    QString title = QString::fromUtf8(String_val(v_title));
+    QString label = QString::fromUtf8(String_val(v_label));
+    int val = Is_block(v_val) ? Int_val(Field(v_val, 0)) : 0;
+    int min_val = Is_block(v_min) ? Int_val(Field(v_min, 0)) : -2147483647;
+    int max_val = Is_block(v_max) ? Int_val(Field(v_max, 0)) : 2147483647;
+    int step = Is_block(v_step) ? Int_val(Field(v_step, 0)) : 1;
+
+    bool ok = false;
+    thread_domain_lock_depth--;
+    caml_release_runtime_system();
+    int res = QInputDialog::getInt(parent, title, label, val, min_val, max_val, step, &ok);
+    caml_acquire_runtime_system();
+    thread_domain_lock_depth++;
+
+    if (!ok) {
+        CAMLreturn(Val_int(0));
+    }
+    value some = caml_alloc(1, 0);
+    Store_field(some, 0, Val_int(res));
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_qinputdialog_get_int_byte(value* argv, int argn) {
+    (void)argn;
+    return caml_oqt6_qinputdialog_get_int(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+}
+
+CAMLprim value caml_oqt6_qinputdialog_get_item(value v_parent, value v_title, value v_label, value v_items, value v_cur, value v_editable) {
+    CAMLparam5(v_parent, v_title, v_label, v_items, v_cur);
+    CAMLxparam1(v_editable);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    QString title = QString::fromUtf8(String_val(v_title));
+    QString label = QString::fromUtf8(String_val(v_label));
+    int current = Is_block(v_cur) ? Int_val(Field(v_cur, 0)) : 0;
+    bool editable = Is_block(v_editable) ? Bool_val(Field(v_editable, 0)) : false;
+
+    QStringList items;
+    value cur = v_items;
+    while (Is_block(cur)) {
+        items.append(QString::fromUtf8(String_val(Field(cur, 0))));
+        cur = Field(cur, 1);
+    }
+
+    bool ok = false;
+    thread_domain_lock_depth--;
+    caml_release_runtime_system();
+    QString res = QInputDialog::getItem(parent, title, label, items, current, editable, &ok);
+    caml_acquire_runtime_system();
+    thread_domain_lock_depth++;
+
+    if (!ok) {
+        CAMLreturn(Val_int(0));
+    }
+    value some = caml_alloc(1, 0);
+    QByteArray utf8 = res.toUtf8();
+    Store_field(some, 0, caml_copy_string(utf8.constData()));
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_qinputdialog_get_item_byte(value* argv, int argn) {
+    (void)argn;
+    return caml_oqt6_qinputdialog_get_item(argv[0], argv[1], argv[2], argv[3], argv[4], argv[5]);
+}
+
+CAMLprim value caml_oqt6_qprogressdialog_create(value v_label, value v_cancel, value v_min, value v_max, value v_parent) {
+    CAMLparam5(v_label, v_cancel, v_min, v_max, v_parent);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    QString label = QString::fromUtf8(String_val(v_label));
+    QString cancel = QString::fromUtf8(String_val(v_cancel));
+    int min_val = Int_val(v_min);
+    int max_val = Int_val(v_max);
+    QProgressDialog* pd = new QProgressDialog(label, cancel, min_val, max_val, parent);
+    CAMLreturn(alloc_qobject(pd, !Is_block(v_parent)));
+}
+
+CAMLprim value caml_oqt6_qprogressdialog_set_value(value v_pd, value v_val) {
+    CAMLparam2(v_pd, v_val);
+    QProgressDialog* pd = get_qobject<QProgressDialog>(v_pd);
+    pd->setValue(Int_val(v_val));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qprogressdialog_value(value v_pd) {
+    CAMLparam1(v_pd);
+    QProgressDialog* pd = get_qobject<QProgressDialog>(v_pd);
+    CAMLreturn(Val_int(pd->value()));
+}
+
+CAMLprim value caml_oqt6_qprogressdialog_was_canceled(value v_pd) {
+    CAMLparam1(v_pd);
+    QProgressDialog* pd = get_qobject<QProgressDialog>(v_pd);
+    CAMLreturn(Val_bool(pd->wasCanceled()));
+}
+
+CAMLprim value caml_oqt6_qprogressdialog_cancel(value v_pd) {
+    CAMLparam1(v_pd);
+    QProgressDialog* pd = get_qobject<QProgressDialog>(v_pd);
+    pd->cancel();
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qprogressdialog_set_range(value v_pd, value v_min, value v_max) {
+    CAMLparam3(v_pd, v_min, v_max);
+    QProgressDialog* pd = get_qobject<QProgressDialog>(v_pd);
+    pd->setRange(Int_val(v_min), Int_val(v_max));
+    CAMLreturn(Val_unit);
+}
+
+/* QPixmap primitives */
+
+CAMLprim value caml_oqt6_qpixmap_create(value v_w, value v_h) {
+    CAMLparam2(v_w, v_h);
+    QPixmap pm(Int_val(v_w), Int_val(v_h));
+    CAMLreturn(alloc_pixmap(pm));
+}
+
+CAMLprim value caml_oqt6_qpixmap_load(value v_path) {
+    CAMLparam1(v_path);
+    QPixmap pm;
+    bool ok = pm.load(QString::fromUtf8(String_val(v_path)));
+    if (!ok) {
+        CAMLreturn(Val_int(0));
+    }
+    value some = caml_alloc(1, 0);
+    Store_field(some, 0, alloc_pixmap(pm));
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_qpixmap_width(value v_pm) {
+    CAMLparam1(v_pm);
+    CAMLreturn(Val_int(Pixmap_val(v_pm).width()));
+}
+
+CAMLprim value caml_oqt6_qpixmap_height(value v_pm) {
+    CAMLparam1(v_pm);
+    CAMLreturn(Val_int(Pixmap_val(v_pm).height()));
+}
+
+CAMLprim value caml_oqt6_qpixmap_is_null(value v_pm) {
+    CAMLparam1(v_pm);
+    CAMLreturn(Val_bool(Pixmap_val(v_pm).isNull()));
+}
+
+CAMLprim value caml_oqt6_qpixmap_fill(value v_pm, value v_c) {
+    CAMLparam2(v_pm, v_c);
+    Pixmap_val(v_pm).fill(QColor_val(v_c));
+    CAMLreturn(Val_unit);
+}
+
+/* QIcon primitives */
+
+CAMLprim value caml_oqt6_qicon_from_file(value v_path) {
+    CAMLparam1(v_path);
+    QIcon ic(QString::fromUtf8(String_val(v_path)));
+    CAMLreturn(alloc_icon(ic));
+}
+
+CAMLprim value caml_oqt6_qicon_from_pixmap(value v_pm) {
+    CAMLparam1(v_pm);
+    QIcon ic(Pixmap_val(v_pm));
+    CAMLreturn(alloc_icon(ic));
+}
+
+CAMLprim value caml_oqt6_qicon_from_theme(value v_name) {
+    CAMLparam1(v_name);
+    QIcon ic = QIcon::fromTheme(QString::fromUtf8(String_val(v_name)));
+    CAMLreturn(alloc_icon(ic));
+}
+
+CAMLprim value caml_oqt6_qicon_is_null(value v_ic) {
+    CAMLparam1(v_ic);
+    CAMLreturn(Val_bool(Icon_val(v_ic).isNull()));
+}
+
+CAMLprim value caml_oqt6_qpushbutton_set_icon(value v_btn, value v_ic) {
+    CAMLparam2(v_btn, v_ic);
+    QPushButton* btn = get_qobject<QPushButton>(v_btn);
+    btn->setIcon(Icon_val(v_ic));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qaction_set_icon(value v_act, value v_ic) {
+    CAMLparam2(v_act, v_ic);
+    QAction* act = get_qobject<QAction>(v_act);
+    act->setIcon(Icon_val(v_ic));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qmainwindow_set_window_icon(value v_win, value v_ic) {
+    CAMLparam2(v_win, v_ic);
+    QMainWindow* win = get_qobject<QMainWindow>(v_win);
+    win->setWindowIcon(Icon_val(v_ic));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_draw_pixmap(value v_p, value v_x, value v_y, value v_pm) {
+    CAMLparam4(v_p, v_x, v_y, v_pm);
+    get_painter(v_p)->drawPixmap(Int_val(v_x), Int_val(v_y), Pixmap_val(v_pm));
+    CAMLreturn(Val_unit);
+}
+
+/* QCursor primitives */
+
+CAMLprim value caml_oqt6_qwidget_set_cursor(value v_w, value v_shape) {
+    CAMLparam2(v_w, v_shape);
+    QWidget* w = get_qobject<QWidget>(v_w);
+    w->setCursor(QCursor(get_cursor_shape(Int_val(v_shape))));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qwidget_unset_cursor(value v_w) {
+    CAMLparam1(v_w);
+    QWidget* w = get_qobject<QWidget>(v_w);
+    w->unsetCursor();
     CAMLreturn(Val_unit);
 }
 

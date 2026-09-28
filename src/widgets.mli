@@ -47,6 +47,16 @@ type qlist_view = [ qabstract_item_view | `QListView ]
 type qheader_view = [ qwidget | `QHeaderView ]
 type qitem_selection_model = [ Core.qobject | `QItemSelectionModel ]
 
+type dock_area = [ `Left_dock | `Right_dock | `Top_dock | `Bottom_dock ]
+type qtab_widget = [ qwidget | `QTabWidget ]
+type qstacked_widget = [ qwidget | `QStackedWidget ]
+type qsplitter = [ qwidget | `QSplitter ]
+type qscroll_area = [ qwidget | `QScrollArea ]
+type qgroup_box = [ qwidget | `QGroupBox ]
+type qtool_bar = [ qwidget | `QToolBar ]
+type qdock_widget = [ qwidget | `QDockWidget ]
+type qprogress_dialog = [ qdialog | `QProgressDialog ]
+
 module App : sig
   val create : ?args:string array -> unit -> qapplication Core.t
   val exec : qapplication Core.t -> int
@@ -79,6 +89,7 @@ module Button : sig
   val create : ?text:string -> ?parent:[> `QWidget ] Core.t -> unit -> qpush_button Core.t
   val set_text : [> `QPushButton ] Core.t -> string -> unit
   val text : [> `QPushButton ] Core.t -> string
+  val set_icon : [> `QPushButton ] Core.t -> Gui.Icon.t -> unit
   val on_clicked : [> `QPushButton ] Core.t -> (unit -> unit) -> unit
 end
 
@@ -199,6 +210,10 @@ module MainWindow : sig
   val menu_bar : [> `QMainWindow ] Core.t -> qmenu_bar Core.t
   val status_bar : [> `QMainWindow ] Core.t -> qstatus_bar Core.t
   val set_status_bar : [> `QMainWindow ] Core.t -> [> `QStatusBar ] Core.t -> unit
+  val set_window_icon : [> `QMainWindow ] Core.t -> Gui.Icon.t -> unit
+  val add_tool_bar : [> `QMainWindow ] Core.t -> [> `QToolBar ] Core.t -> unit
+  val add_tool_bar_title : [> `QMainWindow ] Core.t -> string -> qtool_bar Core.t
+  val add_dock_widget : [> `QMainWindow ] Core.t -> dock_area -> [> `QDockWidget ] Core.t -> unit
 end
 
 module MenuBar : sig
@@ -219,6 +234,7 @@ module Action : sig
   val create : ?text:string -> ?parent:[> `QObject ] Core.t -> unit -> qaction Core.t
   val set_text : [> `QAction ] Core.t -> string -> unit
   val text : [> `QAction ] Core.t -> string
+  val set_icon : [> `QAction ] Core.t -> Gui.Icon.t -> unit
   val set_checkable : [> `QAction ] Core.t -> bool -> unit
   val is_checkable : [> `QAction ] Core.t -> bool
   val set_checked : [> `QAction ] Core.t -> bool -> unit
@@ -362,4 +378,99 @@ module ListView : sig
   val set_selection_mode : [> `QListView ] Core.t -> selection_mode -> unit
   val selection_model : [> `QListView ] Core.t -> qitem_selection_model Core.t
   val on_clicked : [> `QListView ] Core.t -> (int -> unit) -> unit
+end
+
+module TabWidget : sig
+  val create : ?parent:[> `QWidget ] Core.t -> unit -> qtab_widget Core.t
+  val add_tab : [> `QTabWidget ] Core.t -> label:string -> [> `QWidget ] Core.t -> int
+  val insert_tab : [> `QTabWidget ] Core.t -> index:int -> label:string -> [> `QWidget ] Core.t -> int
+  val remove_tab : [> `QTabWidget ] Core.t -> int -> unit
+  val current_index : [> `QTabWidget ] Core.t -> int
+  val set_current_index : [> `QTabWidget ] Core.t -> int -> unit
+  val count : [> `QTabWidget ] Core.t -> int
+  val tab_text : [> `QTabWidget ] Core.t -> int -> string
+  val set_tab_text : [> `QTabWidget ] Core.t -> int -> string -> unit
+  val set_tabs_closable : [> `QTabWidget ] Core.t -> bool -> unit
+  val set_movable : [> `QTabWidget ] Core.t -> bool -> unit
+  val set_tab_icon : [> `QTabWidget ] Core.t -> int -> Gui.Icon.t -> unit
+  val on_current_changed : [> `QTabWidget ] Core.t -> (int -> unit) -> unit
+  val on_tab_close_requested : [> `QTabWidget ] Core.t -> (int -> unit) -> unit
+end
+
+module StackedWidget : sig
+  val create : ?parent:[> `QWidget ] Core.t -> unit -> qstacked_widget Core.t
+  val add_widget : [> `QStackedWidget ] Core.t -> [> `QWidget ] Core.t -> int
+  val remove_widget : [> `QStackedWidget ] Core.t -> [> `QWidget ] Core.t -> unit
+  val current_index : [> `QStackedWidget ] Core.t -> int
+  val set_current_index : [> `QStackedWidget ] Core.t -> int -> unit
+  val count : [> `QStackedWidget ] Core.t -> int
+  val on_current_changed : [> `QStackedWidget ] Core.t -> (int -> unit) -> unit
+end
+
+module Splitter : sig
+  val create : ?orientation:orientation -> ?parent:[> `QWidget ] Core.t -> unit -> qsplitter Core.t
+  val add_widget : [> `QSplitter ] Core.t -> [> `QWidget ] Core.t -> unit
+  val set_orientation : [> `QSplitter ] Core.t -> orientation -> unit
+  val orientation : [> `QSplitter ] Core.t -> orientation
+  val set_sizes : [> `QSplitter ] Core.t -> int list -> unit
+  val sizes : [> `QSplitter ] Core.t -> int list
+  val set_stretch_factor : [> `QSplitter ] Core.t -> index:int -> stretch:int -> unit
+end
+
+module ScrollArea : sig
+  val create : ?parent:[> `QWidget ] Core.t -> unit -> qscroll_area Core.t
+  val set_widget : [> `QScrollArea ] Core.t -> [> `QWidget ] Core.t -> unit
+  val widget : [> `QScrollArea ] Core.t -> qwidget Core.t option
+  val set_widget_resizable : [> `QScrollArea ] Core.t -> bool -> unit
+  val is_widget_resizable : [> `QScrollArea ] Core.t -> bool
+end
+
+module GroupBox : sig
+  val create : ?title:string -> ?parent:[> `QWidget ] Core.t -> unit -> qgroup_box Core.t
+  val title : [> `QGroupBox ] Core.t -> string
+  val set_title : [> `QGroupBox ] Core.t -> string -> unit
+  val is_checkable : [> `QGroupBox ] Core.t -> bool
+  val set_checkable : [> `QGroupBox ] Core.t -> bool -> unit
+  val is_checked : [> `QGroupBox ] Core.t -> bool
+  val set_checked : [> `QGroupBox ] Core.t -> bool -> unit
+  val on_toggled : [> `QGroupBox ] Core.t -> (bool -> unit) -> unit
+end
+
+module ToolBar : sig
+  val create : ?title:string -> ?parent:[> `QWidget ] Core.t -> unit -> qtool_bar Core.t
+  val add_action : [> `QToolBar ] Core.t -> [> `QAction ] Core.t -> unit
+  val add_action_text : [> `QToolBar ] Core.t -> string -> qaction Core.t
+  val add_widget : [> `QToolBar ] Core.t -> [> `QWidget ] Core.t -> unit
+  val add_separator : [> `QToolBar ] Core.t -> unit
+  val set_movable : [> `QToolBar ] Core.t -> bool -> unit
+  val is_movable : [> `QToolBar ] Core.t -> bool
+end
+
+module DockWidget : sig
+  val create : ?title:string -> ?parent:[> `QWidget ] Core.t -> unit -> qdock_widget Core.t
+  val set_widget : [> `QDockWidget ] Core.t -> [> `QWidget ] Core.t -> unit
+  val widget : [> `QDockWidget ] Core.t -> qwidget Core.t option
+end
+
+module ColorDialog : sig
+  val get_color : ?parent:[> `QWidget ] Core.t -> ?initial:Gui.Color.t -> ?title:string -> unit -> Gui.Color.t option
+end
+
+module FontDialog : sig
+  val get_font : ?parent:[> `QWidget ] Core.t -> ?initial:Gui.Font.t -> ?title:string -> unit -> Gui.Font.t option
+end
+
+module InputDialog : sig
+  val get_text : ?parent:[> `QWidget ] Core.t -> title:string -> label:string -> ?initial:string -> unit -> string option
+  val get_int : ?parent:[> `QWidget ] Core.t -> title:string -> label:string -> ?value:int -> ?min:int -> ?max:int -> ?step:int -> unit -> int option
+  val get_item : ?parent:[> `QWidget ] Core.t -> title:string -> label:string -> items:string list -> ?current:int -> ?editable:bool -> unit -> string option
+end
+
+module ProgressDialog : sig
+  val create : label_text:string -> cancel_button_text:string -> min:int -> max:int -> ?parent:[> `QWidget ] Core.t -> unit -> qprogress_dialog Core.t
+  val set_value : [> `QProgressDialog ] Core.t -> int -> unit
+  val value : [> `QProgressDialog ] Core.t -> int
+  val was_canceled : [> `QProgressDialog ] Core.t -> bool
+  val cancel : [> `QProgressDialog ] Core.t -> unit
+  val set_range : [> `QProgressDialog ] Core.t -> min:int -> max:int -> unit
 end

@@ -11,6 +11,8 @@ type resize_event = Widgets.resize_event
 type selection_behavior = Widgets.selection_behavior
 type selection_mode = Widgets.selection_mode
 type header_resize_mode = Widgets.header_resize_mode
+type dock_area = Widgets.dock_area
+type cursor_shape = Gui.Cursor.shape
 
 module Object = Core.Object
 module Timer = Core.Timer
@@ -20,6 +22,9 @@ module Font = Gui.Font
 module Pen = Gui.Pen
 module Brush = Gui.Brush
 module Painter = Gui.Painter
+module Pixmap = Gui.Pixmap
+module Icon = Gui.Icon
+module Cursor = Gui.Cursor
 
 module App = Widgets.App
 module Widget = Widgets.Widget
@@ -52,3 +57,15 @@ module TreeView = Widgets.TreeView
 module ListView = Widgets.ListView
 module HeaderView = Widgets.HeaderView
 module ItemSelectionModel = Widgets.ItemSelectionModel
+
+module TabWidget = Widgets.TabWidget
+module StackedWidget = Widgets.StackedWidget
+module Splitter = Widgets.Splitter
+module ScrollArea = Widgets.ScrollArea
+module GroupBox = Widgets.GroupBox
+module ToolBar = Widgets.ToolBar
+module DockWidget = Widgets.DockWidget
+module ColorDialog = Widgets.ColorDialog
+module FontDialog = Widgets.FontDialog
+module InputDialog = Widgets.InputDialog
+module ProgressDialog = Widgets.ProgressDialog

@@ -223,6 +223,9 @@ let () =
     Painter.fill_rect painter ~x:20 ~y:20 ~width:30 ~height:30 Color.green_color;
     Painter.draw_rounded_rect painter ~x:30 ~y:30 ~width:40 ~height:40 ~x_radius:5.0 ~y_radius:5.0;
     Painter.draw_ellipse painter ~x:40 ~y:40 ~width:30 ~height:30;
+    let icon_pm = Pixmap.create ~width:16 ~height:16 in
+    Pixmap.fill icon_pm (Color.rgb 0 255 255 ());
+    Painter.draw_pixmap painter ~x:50 ~y:50 icon_pm;
     Painter.draw_text painter ~x:5 ~y:15 "Canvas Text";
     Painter.save painter;
     Painter.translate painter ~dx:10.0 ~dy:10.0;
@@ -329,7 +332,135 @@ let () =
   ListView.set_selection_behavior list_v `Select_items;
   Layout.add_widget layout list_v;
 
-  (* 23. Test Timer and Event Loop *)
+  (* 23. Test Pixmap and Icon *)
+  let pm = Pixmap.create ~width:32 ~height:32 in
+  assert (not (Pixmap.is_null pm));
+  assert (Pixmap.width pm = 32);
+  assert (Pixmap.height pm = 32);
+  Pixmap.fill pm (Color.rgb 255 0 0 ());
+  let ic = Icon.from_pixmap pm in
+  assert (not (Icon.is_null ic));
+  Button.set_icon btn ic;
+
+  (* 24. Test Cursor *)
+  Cursor.set_cursor win `Pointing_hand;
+  Cursor.unset_cursor win;
+
+  (* 25. Test TabWidget *)
+  let tab_widget = TabWidget.create ~parent:win () in
+  assert (Object.is_valid tab_widget);
+  let tab1 = Widget.create () in
+  let tab2 = Widget.create () in
+  let idx0 = TabWidget.add_tab tab_widget ~label:"Page 1" tab1 in
+  let idx1 = TabWidget.add_tab tab_widget ~label:"Page 2" tab2 in
+  assert (idx0 = 0);
+  assert (idx1 = 1);
+  assert (TabWidget.count tab_widget = 2);
+  assert (TabWidget.tab_text tab_widget 0 = "Page 1");
+  TabWidget.set_tab_text tab_widget 0 "Page Uno";
+  assert (TabWidget.tab_text tab_widget 0 = "Page Uno");
+  TabWidget.set_current_index tab_widget 1;
+  assert (TabWidget.current_index tab_widget = 1);
+  TabWidget.set_tabs_closable tab_widget true;
+  TabWidget.set_movable tab_widget true;
+  TabWidget.set_tab_icon tab_widget 0 ic;
+  let tab_changed = ref (-1) in
+  TabWidget.on_current_changed tab_widget (fun idx -> tab_changed := idx);
+  TabWidget.set_current_index tab_widget 0;
+  assert (!tab_changed = 0);
+  Layout.add_widget layout tab_widget;
+
+  (* 26. Test StackedWidget *)
+  let stacked = StackedWidget.create ~parent:win () in
+  assert (Object.is_valid stacked);
+  let p1 = Widget.create () in
+  let p2 = Widget.create () in
+  let s_idx0 = StackedWidget.add_widget stacked p1 in
+  let s_idx1 = StackedWidget.add_widget stacked p2 in
+  assert (s_idx0 = 0);
+  assert (s_idx1 = 1);
+  assert (StackedWidget.count stacked = 2);
+  StackedWidget.set_current_index stacked 1;
+  assert (StackedWidget.current_index stacked = 1);
+  Layout.add_widget layout stacked;
+
+  (* 27. Test Splitter *)
+  let splitter = Splitter.create ~orientation:`Horizontal ~parent:win () in
+  assert (Object.is_valid splitter);
+  assert (Splitter.orientation splitter = `Horizontal);
+  Splitter.set_orientation splitter `Vertical;
+  assert (Splitter.orientation splitter = `Vertical);
+  let sp_w1 = Widget.create () in
+  let sp_w2 = Widget.create () in
+  Splitter.add_widget splitter sp_w1;
+  Splitter.add_widget splitter sp_w2;
+  Splitter.set_stretch_factor splitter ~index:0 ~stretch:1;
+  Splitter.set_stretch_factor splitter ~index:1 ~stretch:2;
+  Splitter.set_sizes splitter [100; 200];
+  let sp_sizes = Splitter.sizes splitter in
+  assert (List.length sp_sizes = 2);
+  Layout.add_widget layout splitter;
+
+  (* 28. Test ScrollArea *)
+  let scroll_area = ScrollArea.create ~parent:win () in
+  assert (Object.is_valid scroll_area);
+  let content = Widget.create () in
+  ScrollArea.set_widget scroll_area content;
+  assert (Option.is_some (ScrollArea.widget scroll_area));
+  ScrollArea.set_widget_resizable scroll_area true;
+  assert (ScrollArea.is_widget_resizable scroll_area);
+  Layout.add_widget layout scroll_area;
+
+  (* 29. Test GroupBox *)
+  let gb = GroupBox.create ~title:"Settings" ~parent:win () in
+  assert (Object.is_valid gb);
+  assert (GroupBox.title gb = "Settings");
+  GroupBox.set_title gb "Preferences";
+  assert (GroupBox.title gb = "Preferences");
+  GroupBox.set_checkable gb true;
+  assert (GroupBox.is_checkable gb);
+  GroupBox.set_checked gb true;
+  assert (GroupBox.is_checked gb);
+  let gb_toggled = ref false in
+  GroupBox.on_toggled gb (fun b -> gb_toggled := b);
+  GroupBox.set_checked gb false;
+  assert (!gb_toggled = false);
+  Layout.add_widget layout gb;
+
+  (* 30. Test ToolBar *)
+  let tb = ToolBar.create ~title:"Main Toolbar" ~parent:win () in
+  assert (Object.is_valid tb);
+  let tb_action = Action.create ~text:"Save" () in
+  ToolBar.add_action tb tb_action;
+  let tb_act2 = ToolBar.add_action_text tb "Export" in
+  assert (Object.is_valid tb_act2);
+  ToolBar.add_separator tb;
+  let tb_btn = Button.create ~text:"TB Button" () in
+  ToolBar.add_widget tb tb_btn;
+  ToolBar.set_movable tb false;
+  assert (not (ToolBar.is_movable tb));
+  MainWindow.add_tool_bar main_win tb;
+  let tb_quick = MainWindow.add_tool_bar_title main_win "Quick Bar" in
+  assert (Object.is_valid tb_quick);
+
+  (* 31. Test DockWidget *)
+  let dock = DockWidget.create ~title:"Explorer Dock" ~parent:main_win () in
+  assert (Object.is_valid dock);
+  let dock_w = Widget.create () in
+  DockWidget.set_widget dock dock_w;
+  assert (Option.is_some (DockWidget.widget dock));
+  MainWindow.add_dock_widget main_win `Left_dock dock;
+
+  (* 32. Test ProgressDialog *)
+  let prog_dlg = ProgressDialog.create ~label_text:"Loading..." ~cancel_button_text:"Cancel" ~min:0 ~max:100 ~parent:win () in
+  assert (Object.is_valid prog_dlg);
+  ProgressDialog.set_value prog_dlg 50;
+  assert (ProgressDialog.value prog_dlg = 50);
+  assert (not (ProgressDialog.was_canceled prog_dlg));
+  ProgressDialog.cancel prog_dlg;
+  assert (ProgressDialog.was_canceled prog_dlg);
+
+  (* 33. Test Timer and Event Loop *)
   let timer_fired = ref false in
   Timer.single_shot 50 (fun () ->
     timer_fired := true;

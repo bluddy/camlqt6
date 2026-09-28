@@ -84,6 +84,28 @@ module Brush = struct
   let set_style b s = set_style_raw b (int_of_style s)
 end
 
+module Pixmap = struct
+  type t
+
+  external create_raw : int -> int -> t = "caml_oqt6_qpixmap_create"
+  let create ~width ~height = create_raw width height
+
+  external load : string -> t option = "caml_oqt6_qpixmap_load"
+  external width : t -> int = "caml_oqt6_qpixmap_width"
+  external height : t -> int = "caml_oqt6_qpixmap_height"
+  external is_null : t -> bool = "caml_oqt6_qpixmap_is_null"
+  external fill : t -> Color.t -> unit = "caml_oqt6_qpixmap_fill"
+end
+
+module Icon = struct
+  type t
+
+  external from_file : string -> t = "caml_oqt6_qicon_from_file"
+  external from_pixmap : Pixmap.t -> t = "caml_oqt6_qicon_from_pixmap"
+  external from_theme : string -> t = "caml_oqt6_qicon_from_theme"
+  external is_null : t -> bool = "caml_oqt6_qicon_is_null"
+end
+
 module Painter = struct
   type t
 
@@ -109,6 +131,9 @@ module Painter = struct
   external draw_text_raw : t -> int -> int -> string -> unit = "caml_oqt6_qpainter_draw_text"
   let draw_text p ~x ~y text = draw_text_raw p x y text
 
+  external draw_pixmap_raw : t -> int -> int -> Pixmap.t -> unit = "caml_oqt6_qpainter_draw_pixmap"
+  let draw_pixmap p ~x ~y pm = draw_pixmap_raw p x y pm
+
   external save : t -> unit = "caml_oqt6_qpainter_save"
   external restore : t -> unit = "caml_oqt6_qpainter_restore"
 
@@ -120,4 +145,50 @@ module Painter = struct
 
   external rotate_raw : t -> float -> unit = "caml_oqt6_qpainter_rotate"
   let rotate p ~angle = rotate_raw p angle
+end
+
+module Cursor = struct
+  type shape = [
+    | `Arrow
+    | `Up_arrow
+    | `Cross
+    | `Wait
+    | `I_beam
+    | `Size_ver
+    | `Size_hor
+    | `Size_bdiag
+    | `Size_fdiag
+    | `Size_all
+    | `Blank
+    | `Split_v
+    | `Split_h
+    | `Pointing_hand
+    | `Forbidden
+    | `Open_hand
+    | `Closed_hand
+  ]
+
+  let int_of_shape = function
+    | `Arrow -> 0
+    | `Up_arrow -> 1
+    | `Cross -> 2
+    | `Wait -> 3
+    | `I_beam -> 4
+    | `Size_ver -> 5
+    | `Size_hor -> 6
+    | `Size_bdiag -> 7
+    | `Size_fdiag -> 8
+    | `Size_all -> 9
+    | `Blank -> 10
+    | `Split_v -> 11
+    | `Split_h -> 12
+    | `Pointing_hand -> 13
+    | `Forbidden -> 14
+    | `Open_hand -> 15
+    | `Closed_hand -> 16
+
+  external set_cursor_raw : 'a Core.t -> int -> unit = "caml_oqt6_qwidget_set_cursor"
+  external unset_cursor : 'a Core.t -> unit = "caml_oqt6_qwidget_unset_cursor"
+
+  let set_cursor w shape = set_cursor_raw w (int_of_shape shape)
 end
