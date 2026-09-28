@@ -1,0 +1,18 @@
+(rule
+ (targets cxxflags.sexp clibs.sexp)
+ (deps
+  (:discover ../config/discover.exe))
+ (action
+  (run %{discover} -cxxflags cxxflags.sexp -clibs clibs.sexp)))
+
+(library
+ (name oqt6)
+ (public_name oqt6)
+ (modules core gui widgets oqt6)
+ (foreign_stubs
+  (language cxx)
+  (names oqt6_stubs)
+  (flags
+   (:include cxxflags.sexp)))
+ (c_library_flags
+  (:include clibs.sexp)))
