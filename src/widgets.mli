@@ -83,6 +83,7 @@ module Widget : sig
   val set_style_sheet : [> `QWidget ] Core.t -> string -> unit
   val update : [> `QWidget ] Core.t -> unit
   val set_mouse_tracking : [> `QWidget ] Core.t -> bool -> unit
+  val as_widget : [> `QWidget ] Core.t -> qwidget Core.t
 end
 
 module Button : sig
@@ -295,6 +296,9 @@ module Layout : sig
   val add_layout : [> `QBoxLayout ] Core.t -> ?stretch:int -> [> `QLayout ] Core.t -> unit
   val add_stretch : [> `QBoxLayout ] Core.t -> ?stretch:int -> unit -> unit
   val add_spacing : [> `QBoxLayout ] Core.t -> int -> unit
+  val set_spacing : [> `QLayout ] Core.t -> int -> unit
+  val set_contents_margins : [> `QLayout ] Core.t -> left:int -> top:int -> right:int -> bottom:int -> unit
+  val set_margin : [> `QLayout ] Core.t -> int -> unit
 end
 
 module ItemSelectionModel : sig

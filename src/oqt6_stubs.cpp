@@ -978,6 +978,20 @@ CAMLprim value caml_oqt6_qboxlayout_add_spacing(value v_layout, value v_size) {
     CAMLreturn(Val_unit);
 }
 
+CAMLprim value caml_oqt6_qlayout_set_spacing(value v_layout, value v_spacing) {
+    CAMLparam2(v_layout, v_spacing);
+    QLayout* l = get_qobject<QLayout>(v_layout);
+    l->setSpacing(Int_val(v_spacing));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qlayout_set_contents_margins(value v_layout, value v_left, value v_top, value v_right, value v_bottom) {
+    CAMLparam5(v_layout, v_left, v_top, v_right, v_bottom);
+    QLayout* l = get_qobject<QLayout>(v_layout);
+    l->setContentsMargins(Int_val(v_left), Int_val(v_top), Int_val(v_right), Int_val(v_bottom));
+    CAMLreturn(Val_unit);
+}
+
 /* QCheckBox primitives */
 
 CAMLprim value caml_oqt6_qcheckbox_create(value v_text, value v_parent) {

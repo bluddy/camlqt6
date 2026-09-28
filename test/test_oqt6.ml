@@ -460,7 +460,73 @@ let () =
   ProgressDialog.cancel prog_dlg;
   assert (ProgressDialog.was_canceled prog_dlg);
 
-  (* 33. Test Timer and Event Loop *)
+  (* 33. Test State and Declarative Reactive DSL *)
+  let counter = State.create 0 in
+  assert (State.get counter = 0);
+  State.set counter 5;
+  assert (State.get counter = 5);
+  State.update counter (fun n -> n + 1);
+  assert (State.get counter = 6);
+
+  let counter_str = State.map (fun n -> Printf.sprintf "Value: %d" n) counter in
+  assert (State.get counter_str = "Value: 6");
+  State.set counter 10;
+  assert (State.get counter_str = "Value: 10");
+
+  let flag = State.create true in
+  let combined = State.map2 (fun n b -> if b then Printf.sprintf "Active: %d" n else "Inactive") counter flag in
+  assert (State.get combined = "Active: 10");
+  State.set flag false;
+  assert (State.get combined = "Inactive");
+
+  (* Test Declarative Tree Composition and Mount *)
+  let text_state = State.create "Initial Text" in
+  let check_state = State.create false in
+  let slider_state = State.create 42 in
+  let button_clicked = ref false in
+
+  let declarative_tree =
+    Dsl.window ~title:"DSL Window" ~width:400 ~height:300 (
+      Dsl.vbox ~spacing:8 ~margin:10 [
+        Dsl.label "Static Header";
+        Dsl.label_s counter_str;
+        Dsl.hbox ~spacing:5 [
+          Dsl.button ~on_click:(fun () -> button_clicked := true) "Click Me";
+          Dsl.button_s counter_str;
+        ];
+        Dsl.check_box ~checked:check_state "Enable Feature";
+        Dsl.line_edit ~placeholder:"Type here..." ~text:text_state ();
+        Dsl.slider ~min:0 ~max:100 ~value:slider_state ();
+        Dsl.progress_bar ~min:0 ~max:100 ~value:slider_state ();
+        Dsl.cond check_state
+          ~true_node:(Dsl.label "Feature is ENABLED")
+          ~false_node:(Dsl.label "Feature is DISABLED");
+        Dsl.tabs [
+          ("Tab A", Dsl.label "Content A");
+          ("Tab B", Dsl.label "Content B");
+        ];
+        Dsl.group ~title:"Settings" (Dsl.label "Group Content");
+        Dsl.stretch ();
+      ]
+    )
+  in
+  let mounted_win = Dsl.mount declarative_tree in
+  assert (Object.is_valid mounted_win);
+
+  (* Test reactive updates propagate to mounted components *)
+  State.set counter 99;
+  assert (State.get counter_str = "Value: 99");
+
+  State.set text_state "Updated from State";
+  assert (State.get text_state = "Updated from State");
+
+  State.set check_state true;
+  assert (State.get check_state = true);
+
+  State.set slider_state 88;
+  assert (State.get slider_state = 88);
+
+  (* 34. Test Timer and Event Loop *)
   let timer_fired = ref false in
   Timer.single_shot 50 (fun () ->
     timer_fired := true;

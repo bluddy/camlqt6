@@ -8,7 +8,7 @@
 (library
  (name oqt6)
  (public_name oqt6)
- (modules core gui widgets oqt6)
+ (modules core gui widgets dsl oqt6)
  (foreign_stubs
   (language cxx)
   (names oqt6_stubs)

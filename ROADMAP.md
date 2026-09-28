@@ -140,33 +140,24 @@ flowchart LR
 
 ---
 
-### Phase 5: Declarative / Reactive Functional UI DSL
-*Goal: Provide a modern functional reactive programming (FRP) or declarative builder.*
+### Phase 5: Declarative / Reactive Functional UI DSL — [COMPLETED]
+*Goal: Provide a modern functional reactive programming (FRP) and declarative UI builder on top of Qt 6.*
 
-Instead of imperative widget creation:
-```ocaml
-(* Imperative *)
-let win = Widget.create () in
-let layout = Layout.VBox.create ~parent:win () in
-let btn = Button.create ~text:"Click" () in
-Layout.add_widget layout btn;
-```
-
-Enable declarative composition:
-```ocaml
-(* Declarative UI Tree *)
-let ui =
-  window ~title:"OQt6 Declarative" ~size:(400, 300) [
-    vbox ~spacing:10 [
-      label "Enter your name:";
-      line_edit ~placeholder:"Name..." ~on_change:(fun s -> ...);
-      hbox [
-        button ~style:`Primary ~on_click:(fun () -> ...) "Submit";
-        button ~style:`Secondary ~on_click:(fun () -> ...) "Cancel";
-      ];
-    ]
-  ]
-```
+1. **Lightweight Reactive Signals (`Dsl.State`):**
+   - [x] `State.create`, `State.get`, `State.set`, `State.update`.
+   - [x] `State.subscribe`: Immediate initial notification and dynamic subscriber dispatching.
+   - [x] `State.map`: Zero-boilerplate derived reactive values.
+   - [x] `State.map2`: Reactive combination of multiple independent state signals.
+2. **Declarative Component Trees (`Dsl`):**
+   - [x] Containers & Layouts: `vbox`, `hbox`, `grid`, `split`, `tabs`, `scroll`, `group`, `spacing`, `stretch`.
+   - [x] Reactive Control Flow: `cond` (boolean switching) and `match_s` (state-driven multi-branching) backed by `QStackedWidget`.
+   - [x] Bidirectional Data Binding: `line_edit`, `text_edit`, `check_box`, `radio_button`, `slider`, `spin_box`, `combo_box`.
+   - [x] Reactive Display Elements: `label_s`, `button_s`, `progress_bar`.
+   - [x] Custom Widget Integration: `custom` for embedding imperative widgets into declarative trees.
+3. **Application Runner:**
+   - [x] `Dsl.mount`: Compiles the declarative specification tree into a live Qt widget hierarchy.
+   - [x] `Dsl.run`: One-line application execution with automatic event loop setup.
+   - [x] Interactive demo: [examples/declarative_todo.ml](file:///home/yotam/source/ocaml/oqt6/examples/declarative_todo.ml).
 
 ---
 
@@ -179,4 +170,4 @@ let ui =
 | **M3: Event Trampolines & QPainter (Phase 2)** | `OCamlWidget` C++ trampoline class, `paintEvent`, `QPainter`, `QColor`, `QFont`, custom drawing demo | **Completed** |
 | **M4: Model / View / Delegate Architecture (Phase 3)** | `QTableView`, `QTreeView`, `QListView`, `QAbstractItemModel` bridge, functional `TableModel` | **Completed** |
 | **M5: Broad Desktop GUI Coverage (Phase 4)** | `QTabWidget`, `QStackedWidget`, `QSplitter`, `QScrollArea`, `QGroupBox`, `QToolBar`, `QDockWidget`, `QPixmap`, `QIcon`, `QCursor`, Dialogs (`QColorDialog`, `QFontDialog`, `QInputDialog`, `QProgressDialog`), Workbench demo | **Completed** |
-| **M6: Declarative Functional UI DSL (Phase 5)** | Declarative tree combinators, reactive state bindings | Planned |
+| **M6: Declarative Functional UI DSL (Phase 5)** | Declarative tree combinators, reactive `State`, bidirectional input sync, reactive control flow (`cond`, `match_s`), Todo & Dashboard demo | **Completed** |

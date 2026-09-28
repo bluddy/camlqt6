@@ -135,6 +135,7 @@ module Widget = struct
   let set_style_sheet = qwidget_set_style_sheet
   let update = qwidget_update
   let set_mouse_tracking = qwidget_set_mouse_tracking
+  let as_widget = Core.cast
 end
 
 (* Button *)
@@ -526,6 +527,9 @@ external qgridlayout_set_row_stretch : 'a Core.t -> int -> int -> unit = "caml_o
 external qgridlayout_set_column_stretch : 'a Core.t -> int -> int -> unit = "caml_oqt6_qgridlayout_set_column_stretch"
 external qgridlayout_set_spacing : 'a Core.t -> int -> unit = "caml_oqt6_qgridlayout_set_spacing"
 
+external qlayout_set_spacing : 'a Core.t -> int -> unit = "caml_oqt6_qlayout_set_spacing"
+external qlayout_set_contents_margins : 'a Core.t -> int -> int -> int -> int -> unit = "caml_oqt6_qlayout_set_contents_margins"
+
 module Layout = struct
   module VBox = struct
     let create ?parent () = qvboxlayout_create parent
@@ -550,6 +554,11 @@ module Layout = struct
   let add_layout l ?stretch sub = qboxlayout_add_layout l stretch sub
   let add_stretch l ?stretch () = qboxlayout_add_stretch l stretch
   let add_spacing = qboxlayout_add_spacing
+  let set_spacing = qlayout_set_spacing
+  let set_contents_margins l ~left ~top ~right ~bottom =
+    qlayout_set_contents_margins l left top right bottom
+  let set_margin l m =
+    qlayout_set_contents_margins l m m m m
 end
 
 (* ItemSelectionModel *)

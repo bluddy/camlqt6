@@ -1,5 +1,7 @@
 type (+'a) t
 
+external cast : 'a t -> 'b t = "%identity"
+
 type qobject = [ `QObject ]
 type qtimer = [ qobject | `QTimer ]
 

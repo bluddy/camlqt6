@@ -71,3 +71,6 @@ module ColorDialog = Widgets.ColorDialog
 module FontDialog = Widgets.FontDialog
 module InputDialog = Widgets.InputDialog
 module ProgressDialog = Widgets.ProgressDialog
+
+module Dsl = Dsl
+module State = Dsl.State
