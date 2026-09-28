@@ -1,6 +1,9 @@
 (** Qt 6 Widgets module *)
 
 type orientation = [ `Horizontal | `Vertical ]
+type selection_behavior = [ `Select_items | `Select_rows | `Select_columns ]
+type selection_mode = [ `No_selection | `Single_selection | `Multi_selection | `Extended_selection | `Contiguous_selection ]
+type header_resize_mode = [ `Interactive | `Stretch | `Fixed | `Resize_to_contents ]
 
 type mouse_button = [ `Left_button | `Right_button | `Middle_button | `No_button ]
 type mouse_event = { x : int; y : int; button : mouse_button }
@@ -31,6 +34,18 @@ type qaction = [ Core.qobject | `QAction ]
 type qstatus_bar = [ qwidget | `QStatusBar ]
 type qdialog = [ qwidget | `QDialog ]
 type qapplication = [ Core.qobject | `QApplication ]
+
+type qabstract_item_model = [ Core.qobject | `QAbstractItemModel ]
+type qabstract_table_model = [ qabstract_item_model | `QAbstractTableModel ]
+type qstandard_item_model = [ qabstract_item_model | `QStandardItemModel ]
+type qocaml_table_model = [ qabstract_table_model | `QOCamlTableModel ]
+
+type qabstract_item_view = [ qwidget | `QAbstractItemView ]
+type qtable_view = [ qabstract_item_view | `QTableView ]
+type qtree_view = [ qabstract_item_view | `QTreeView ]
+type qlist_view = [ qabstract_item_view | `QListView ]
+type qheader_view = [ qwidget | `QHeaderView ]
+type qitem_selection_model = [ Core.qobject | `QItemSelectionModel ]
 
 module App : sig
   val create : ?args:string array -> unit -> qapplication Core.t
@@ -264,4 +279,87 @@ module Layout : sig
   val add_layout : [> `QBoxLayout ] Core.t -> ?stretch:int -> [> `QLayout ] Core.t -> unit
   val add_stretch : [> `QBoxLayout ] Core.t -> ?stretch:int -> unit -> unit
   val add_spacing : [> `QBoxLayout ] Core.t -> int -> unit
+end
+
+module ItemSelectionModel : sig
+  val clear_selection : [> `QItemSelectionModel ] Core.t -> unit
+  val has_selection : [> `QItemSelectionModel ] Core.t -> bool
+  val selected_rows : [> `QItemSelectionModel ] Core.t -> int list
+  val current_row : [> `QItemSelectionModel ] Core.t -> int
+  val current_column : [> `QItemSelectionModel ] Core.t -> int
+  val on_selection_changed : [> `QItemSelectionModel ] Core.t -> (unit -> unit) -> unit
+  val on_current_changed : [> `QItemSelectionModel ] Core.t -> (int -> int -> unit) -> unit
+end
+
+module HeaderView : sig
+  val set_stretch_last_section : [> `QHeaderView ] Core.t -> bool -> unit
+  val is_stretch_last_section : [> `QHeaderView ] Core.t -> bool
+  val set_section_resize_mode : [> `QHeaderView ] Core.t -> ?section:int -> header_resize_mode -> unit
+end
+
+module StandardItemModel : sig
+  val create : ?rows:int -> ?cols:int -> ?parent:[> `QObject ] Core.t -> unit -> qstandard_item_model Core.t
+  val set_item : [> `QStandardItemModel ] Core.t -> row:int -> col:int -> text:string -> unit
+  val item_text : [> `QStandardItemModel ] Core.t -> row:int -> col:int -> string
+  val set_horizontal_header_labels : [> `QStandardItemModel ] Core.t -> string list -> unit
+  val set_vertical_header_labels : [> `QStandardItemModel ] Core.t -> string list -> unit
+  val row_count : [> `QStandardItemModel ] Core.t -> int
+  val column_count : [> `QStandardItemModel ] Core.t -> int
+  val clear : [> `QStandardItemModel ] Core.t -> unit
+  val append_row : [> `QStandardItemModel ] Core.t -> string list -> unit
+  val remove_row : [> `QStandardItemModel ] Core.t -> int -> unit
+  val remove_column : [> `QStandardItemModel ] Core.t -> int -> unit
+end
+
+module TableModel : sig
+  val create :
+    ?parent:[> `QObject ] Core.t ->
+    row_count:(unit -> int) ->
+    col_count:(unit -> int) ->
+    data:(int -> int -> string) ->
+    ?header_data:(int -> orientation -> string) ->
+    unit -> qocaml_table_model Core.t
+
+  val notify_reset : [> `QOCamlTableModel ] Core.t -> unit
+  val notify_data_changed : [> `QOCamlTableModel ] Core.t -> top_row:int -> left_col:int -> bottom_row:int -> right_col:int -> unit
+end
+
+module TableView : sig
+  val create : ?parent:[> `QWidget ] Core.t -> unit -> qtable_view Core.t
+  val set_model : [> `QTableView ] Core.t -> [> `QAbstractItemModel ] Core.t -> unit
+  val set_selection_behavior : [> `QTableView ] Core.t -> selection_behavior -> unit
+  val set_selection_mode : [> `QTableView ] Core.t -> selection_mode -> unit
+  val set_sorting_enabled : [> `QTableView ] Core.t -> bool -> unit
+  val set_show_grid : [> `QTableView ] Core.t -> bool -> unit
+  val set_alternating_row_colors : [> `QTableView ] Core.t -> bool -> unit
+  val resize_columns_to_contents : [> `QTableView ] Core.t -> unit
+  val resize_rows_to_contents : [> `QTableView ] Core.t -> unit
+  val horizontal_header : [> `QTableView ] Core.t -> qheader_view Core.t
+  val vertical_header : [> `QTableView ] Core.t -> qheader_view Core.t
+  val selection_model : [> `QTableView ] Core.t -> qitem_selection_model Core.t
+  val on_clicked : [> `QTableView ] Core.t -> (int -> int -> unit) -> unit
+  val on_double_clicked : [> `QTableView ] Core.t -> (int -> int -> unit) -> unit
+end
+
+module TreeView : sig
+  val create : ?parent:[> `QWidget ] Core.t -> unit -> qtree_view Core.t
+  val set_model : [> `QTreeView ] Core.t -> [> `QAbstractItemModel ] Core.t -> unit
+  val set_selection_behavior : [> `QTreeView ] Core.t -> selection_behavior -> unit
+  val set_selection_mode : [> `QTreeView ] Core.t -> selection_mode -> unit
+  val set_sorting_enabled : [> `QTreeView ] Core.t -> bool -> unit
+  val set_alternating_row_colors : [> `QTreeView ] Core.t -> bool -> unit
+  val expand_all : [> `QTreeView ] Core.t -> unit
+  val collapse_all : [> `QTreeView ] Core.t -> unit
+  val header : [> `QTreeView ] Core.t -> qheader_view Core.t
+  val selection_model : [> `QTreeView ] Core.t -> qitem_selection_model Core.t
+  val on_clicked : [> `QTreeView ] Core.t -> (int -> int -> unit) -> unit
+end
+
+module ListView : sig
+  val create : ?parent:[> `QWidget ] Core.t -> unit -> qlist_view Core.t
+  val set_model : [> `QListView ] Core.t -> [> `QAbstractItemModel ] Core.t -> unit
+  val set_selection_behavior : [> `QListView ] Core.t -> selection_behavior -> unit
+  val set_selection_mode : [> `QListView ] Core.t -> selection_mode -> unit
+  val selection_model : [> `QListView ] Core.t -> qitem_selection_model Core.t
+  val on_clicked : [> `QListView ] Core.t -> (int -> unit) -> unit
 end

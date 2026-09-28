@@ -33,6 +33,18 @@
 #include <QTimer>
 #include <QString>
 #include <QPointer>
+#include <QAbstractItemModel>
+#include <QAbstractTableModel>
+#include <QStandardItemModel>
+#include <QStandardItem>
+#include <QTableView>
+#include <QTreeView>
+#include <QListView>
+#include <QHeaderView>
+#include <QItemSelectionModel>
+#include <QModelIndex>
+#include <QStringList>
+#include <QList>
 #include <new>
 
 #include <cstring>
@@ -334,6 +346,84 @@ protected:
             caml_callbackN_exn(*resize_cb, 4, args);
         }
         QWidget::resizeEvent(event);
+    }
+};
+
+class OCamlTableModel : public QAbstractTableModel {
+public:
+    value* row_count_cb = nullptr;
+    value* col_count_cb = nullptr;
+    value* data_cb = nullptr;
+    value* header_data_cb = nullptr;
+
+    explicit OCamlTableModel(QObject* parent = nullptr) : QAbstractTableModel(parent) {}
+
+    ~OCamlTableModel() override {
+        if (row_count_cb) {
+            caml_remove_global_root(row_count_cb);
+            delete row_count_cb;
+        }
+        if (col_count_cb) {
+            caml_remove_global_root(col_count_cb);
+            delete col_count_cb;
+        }
+        if (data_cb) {
+            caml_remove_global_root(data_cb);
+            delete data_cb;
+        }
+        if (header_data_cb) {
+            caml_remove_global_root(header_data_cb);
+            delete header_data_cb;
+        }
+    }
+
+    int rowCount(const QModelIndex& parent = QModelIndex()) const override {
+        if (parent.isValid() || !row_count_cb) return 0;
+        CamlDomainLockGuard guard;
+        value res = caml_callback_exn(*row_count_cb, Val_unit);
+        if (Is_exception_result(res)) return 0;
+        return Int_val(res);
+    }
+
+    int columnCount(const QModelIndex& parent = QModelIndex()) const override {
+        if (parent.isValid() || !col_count_cb) return 0;
+        CamlDomainLockGuard guard;
+        value res = caml_callback_exn(*col_count_cb, Val_unit);
+        if (Is_exception_result(res)) return 0;
+        return Int_val(res);
+    }
+
+    QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override {
+        if (!index.isValid() || !data_cb) return QVariant();
+        if (role != Qt::DisplayRole && role != Qt::EditRole) return QVariant();
+        CamlDomainLockGuard guard;
+        value args[2] = { Val_int(index.row()), Val_int(index.column()) };
+        value res = caml_callbackN_exn(*data_cb, 2, args);
+        if (Is_exception_result(res)) return QVariant();
+        return QString::fromUtf8(String_val(res));
+    }
+
+    QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override {
+        if (role != Qt::DisplayRole || !header_data_cb) {
+            return QAbstractTableModel::headerData(section, orientation, role);
+        }
+        CamlDomainLockGuard guard;
+        int orient = (orientation == Qt::Horizontal) ? 0 : 1;
+        value args[2] = { Val_int(section), Val_int(orient) };
+        value res = caml_callbackN_exn(*header_data_cb, 2, args);
+        if (Is_exception_result(res)) return QVariant();
+        return QString::fromUtf8(String_val(res));
+    }
+
+    void notify_reset() {
+        beginResetModel();
+        endResetModel();
+    }
+
+    void notify_data_changed(int top_row, int left_col, int bottom_row, int right_col) {
+        QModelIndex top_left = index(top_row, left_col);
+        QModelIndex bottom_right = index(bottom_row, right_col);
+        emit dataChanged(top_left, bottom_right);
     }
 };
 
@@ -2205,6 +2295,527 @@ CAMLprim value caml_oqt6_qwidget_set_mouse_tracking(value v_w, value v_b) {
     CAMLparam2(v_w, v_b);
     QWidget* w = get_qobject<QWidget>(v_w);
     w->setMouseTracking(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+/* OCamlTableModel primitives */
+
+CAMLprim value caml_oqt6_tablemodel_create(value v_parent) {
+    CAMLparam1(v_parent);
+    QObject* parent = Is_block(v_parent) ? get_qobject<QObject>(Field(v_parent, 0)) : nullptr;
+    OCamlTableModel* m = new OCamlTableModel(parent);
+    CAMLreturn(alloc_qobject(m, !Is_block(v_parent)));
+}
+
+CAMLprim value caml_oqt6_tablemodel_set_callbacks(value v_m, value v_rc, value v_cc, value v_data, value v_header) {
+    CAMLparam5(v_m, v_rc, v_cc, v_data, v_header);
+    OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
+
+    if (!m->row_count_cb) {
+        m->row_count_cb = new value;
+        caml_register_global_root(m->row_count_cb);
+    }
+    *m->row_count_cb = v_rc;
+
+    if (!m->col_count_cb) {
+        m->col_count_cb = new value;
+        caml_register_global_root(m->col_count_cb);
+    }
+    *m->col_count_cb = v_cc;
+
+    if (!m->data_cb) {
+        m->data_cb = new value;
+        caml_register_global_root(m->data_cb);
+    }
+    *m->data_cb = v_data;
+
+    if (Is_block(v_header)) {
+        if (!m->header_data_cb) {
+            m->header_data_cb = new value;
+            caml_register_global_root(m->header_data_cb);
+        }
+        *m->header_data_cb = Field(v_header, 0);
+    }
+
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_tablemodel_notify_reset(value v_m) {
+    CAMLparam1(v_m);
+    OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
+    m->notify_reset();
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_tablemodel_notify_data_changed(value v_m, value v_tr, value v_lc, value v_br, value v_rc) {
+    CAMLparam5(v_m, v_tr, v_lc, v_br, v_rc);
+    OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
+    m->notify_data_changed(Int_val(v_tr), Int_val(v_lc), Int_val(v_br), Int_val(v_rc));
+    CAMLreturn(Val_unit);
+}
+
+/* QStandardItemModel primitives */
+
+CAMLprim value caml_oqt6_qstandarditemmodel_create(value v_rows, value v_cols, value v_parent) {
+    CAMLparam3(v_rows, v_cols, v_parent);
+    QObject* parent = Is_block(v_parent) ? get_qobject<QObject>(Field(v_parent, 0)) : nullptr;
+    int rows = Is_block(v_rows) ? Int_val(Field(v_rows, 0)) : 0;
+    int cols = Is_block(v_cols) ? Int_val(Field(v_cols, 0)) : 0;
+    QStandardItemModel* m = new QStandardItemModel(rows, cols, parent);
+    CAMLreturn(alloc_qobject(m, !Is_block(v_parent)));
+}
+
+CAMLprim value caml_oqt6_qstandarditemmodel_set_item(value v_m, value v_r, value v_c, value v_text) {
+    CAMLparam4(v_m, v_r, v_c, v_text);
+    QStandardItemModel* m = get_qobject<QStandardItemModel>(v_m);
+    QStandardItem* item = new QStandardItem(QString::fromUtf8(String_val(v_text)));
+    m->setItem(Int_val(v_r), Int_val(v_c), item);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qstandarditemmodel_item_text(value v_m, value v_r, value v_c) {
+    CAMLparam3(v_m, v_r, v_c);
+    QStandardItemModel* m = get_qobject<QStandardItemModel>(v_m);
+    QStandardItem* item = m->item(Int_val(v_r), Int_val(v_c));
+    if (!item) {
+        CAMLreturn(caml_copy_string(""));
+    }
+    QByteArray utf8 = item->text().toUtf8();
+    CAMLreturn(caml_copy_string(utf8.constData()));
+}
+
+CAMLprim value caml_oqt6_qstandarditemmodel_set_horizontal_header_labels(value v_m, value v_labels) {
+    CAMLparam2(v_m, v_labels);
+    QStandardItemModel* m = get_qobject<QStandardItemModel>(v_m);
+    QStringList qlabels;
+    value cur = v_labels;
+    while (Is_block(cur)) {
+        qlabels.append(QString::fromUtf8(String_val(Field(cur, 0))));
+        cur = Field(cur, 1);
+    }
+    m->setHorizontalHeaderLabels(qlabels);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qstandarditemmodel_set_vertical_header_labels(value v_m, value v_labels) {
+    CAMLparam2(v_m, v_labels);
+    QStandardItemModel* m = get_qobject<QStandardItemModel>(v_m);
+    QStringList qlabels;
+    value cur = v_labels;
+    while (Is_block(cur)) {
+        qlabels.append(QString::fromUtf8(String_val(Field(cur, 0))));
+        cur = Field(cur, 1);
+    }
+    m->setVerticalHeaderLabels(qlabels);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qstandarditemmodel_row_count(value v_m) {
+    CAMLparam1(v_m);
+    QStandardItemModel* m = get_qobject<QStandardItemModel>(v_m);
+    CAMLreturn(Val_int(m->rowCount()));
+}
+
+CAMLprim value caml_oqt6_qstandarditemmodel_column_count(value v_m) {
+    CAMLparam1(v_m);
+    QStandardItemModel* m = get_qobject<QStandardItemModel>(v_m);
+    CAMLreturn(Val_int(m->columnCount()));
+}
+
+CAMLprim value caml_oqt6_qstandarditemmodel_clear(value v_m) {
+    CAMLparam1(v_m);
+    QStandardItemModel* m = get_qobject<QStandardItemModel>(v_m);
+    m->clear();
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qstandarditemmodel_append_row(value v_m, value v_items) {
+    CAMLparam2(v_m, v_items);
+    QStandardItemModel* m = get_qobject<QStandardItemModel>(v_m);
+    QList<QStandardItem*> row_items;
+    value cur = v_items;
+    while (Is_block(cur)) {
+        row_items.append(new QStandardItem(QString::fromUtf8(String_val(Field(cur, 0)))));
+        cur = Field(cur, 1);
+    }
+    m->appendRow(row_items);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qstandarditemmodel_remove_row(value v_m, value v_r) {
+    CAMLparam2(v_m, v_r);
+    QStandardItemModel* m = get_qobject<QStandardItemModel>(v_m);
+    m->removeRow(Int_val(v_r));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qstandarditemmodel_remove_column(value v_m, value v_c) {
+    CAMLparam2(v_m, v_c);
+    QStandardItemModel* m = get_qobject<QStandardItemModel>(v_m);
+    m->removeColumn(Int_val(v_c));
+    CAMLreturn(Val_unit);
+}
+
+/* QTableView primitives */
+
+CAMLprim value caml_oqt6_qtableview_create(value v_parent) {
+    CAMLparam1(v_parent);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    QTableView* v = new QTableView(parent);
+    CAMLreturn(alloc_qobject(v, !Is_block(v_parent)));
+}
+
+CAMLprim value caml_oqt6_qtableview_set_model(value v_v, value v_m) {
+    CAMLparam2(v_v, v_m);
+    QTableView* v = get_qobject<QTableView>(v_v);
+    QAbstractItemModel* m = get_qobject<QAbstractItemModel>(v_m);
+    v->setModel(m);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtableview_set_selection_behavior(value v_v, value v_beh) {
+    CAMLparam2(v_v, v_beh);
+    QTableView* v = get_qobject<QTableView>(v_v);
+    v->setSelectionBehavior(static_cast<QAbstractItemView::SelectionBehavior>(Int_val(v_beh)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtableview_set_selection_mode(value v_v, value v_mode) {
+    CAMLparam2(v_v, v_mode);
+    QTableView* v = get_qobject<QTableView>(v_v);
+    v->setSelectionMode(static_cast<QAbstractItemView::SelectionMode>(Int_val(v_mode)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtableview_set_sorting_enabled(value v_v, value v_b) {
+    CAMLparam2(v_v, v_b);
+    QTableView* v = get_qobject<QTableView>(v_v);
+    v->setSortingEnabled(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtableview_set_show_grid(value v_v, value v_b) {
+    CAMLparam2(v_v, v_b);
+    QTableView* v = get_qobject<QTableView>(v_v);
+    v->setShowGrid(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtableview_set_alternating_row_colors(value v_v, value v_b) {
+    CAMLparam2(v_v, v_b);
+    QTableView* v = get_qobject<QTableView>(v_v);
+    v->setAlternatingRowColors(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtableview_resize_columns_to_contents(value v_v) {
+    CAMLparam1(v_v);
+    QTableView* v = get_qobject<QTableView>(v_v);
+    v->resizeColumnsToContents();
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtableview_resize_rows_to_contents(value v_v) {
+    CAMLparam1(v_v);
+    QTableView* v = get_qobject<QTableView>(v_v);
+    v->resizeRowsToContents();
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtableview_horizontal_header(value v_v) {
+    CAMLparam1(v_v);
+    QTableView* v = get_qobject<QTableView>(v_v);
+    CAMLreturn(alloc_qobject(v->horizontalHeader(), false));
+}
+
+CAMLprim value caml_oqt6_qtableview_vertical_header(value v_v) {
+    CAMLparam1(v_v);
+    QTableView* v = get_qobject<QTableView>(v_v);
+    CAMLreturn(alloc_qobject(v->verticalHeader(), false));
+}
+
+CAMLprim value caml_oqt6_qtableview_selection_model(value v_v) {
+    CAMLparam1(v_v);
+    QTableView* v = get_qobject<QTableView>(v_v);
+    CAMLreturn(alloc_qobject(v->selectionModel(), false));
+}
+
+CAMLprim value caml_oqt6_qtableview_connect_clicked(value v_v, value v_cb) {
+    CAMLparam2(v_v, v_cb);
+    QTableView* v = get_qobject<QTableView>(v_v);
+    value* root = new value;
+    *root = v_cb;
+    caml_register_global_root(root);
+
+    QObject::connect(v, &QTableView::clicked, [root](const QModelIndex& index) {
+        CamlDomainLockGuard guard;
+        value args[2] = { Val_int(index.row()), Val_int(index.column()) };
+        caml_callbackN_exn(*root, 2, args);
+    });
+    connect_root_cleanup(v, root);
+
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtableview_connect_double_clicked(value v_v, value v_cb) {
+    CAMLparam2(v_v, v_cb);
+    QTableView* v = get_qobject<QTableView>(v_v);
+    value* root = new value;
+    *root = v_cb;
+    caml_register_global_root(root);
+
+    QObject::connect(v, &QTableView::doubleClicked, [root](const QModelIndex& index) {
+        CamlDomainLockGuard guard;
+        value args[2] = { Val_int(index.row()), Val_int(index.column()) };
+        caml_callbackN_exn(*root, 2, args);
+    });
+    connect_root_cleanup(v, root);
+
+    CAMLreturn(Val_unit);
+}
+
+/* QTreeView primitives */
+
+CAMLprim value caml_oqt6_qtreeview_create(value v_parent) {
+    CAMLparam1(v_parent);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    QTreeView* v = new QTreeView(parent);
+    CAMLreturn(alloc_qobject(v, !Is_block(v_parent)));
+}
+
+CAMLprim value caml_oqt6_qtreeview_set_model(value v_v, value v_m) {
+    CAMLparam2(v_v, v_m);
+    QTreeView* v = get_qobject<QTreeView>(v_v);
+    QAbstractItemModel* m = get_qobject<QAbstractItemModel>(v_m);
+    v->setModel(m);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtreeview_set_selection_behavior(value v_v, value v_beh) {
+    CAMLparam2(v_v, v_beh);
+    QTreeView* v = get_qobject<QTreeView>(v_v);
+    v->setSelectionBehavior(static_cast<QAbstractItemView::SelectionBehavior>(Int_val(v_beh)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtreeview_set_selection_mode(value v_v, value v_mode) {
+    CAMLparam2(v_v, v_mode);
+    QTreeView* v = get_qobject<QTreeView>(v_v);
+    v->setSelectionMode(static_cast<QAbstractItemView::SelectionMode>(Int_val(v_mode)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtreeview_set_sorting_enabled(value v_v, value v_b) {
+    CAMLparam2(v_v, v_b);
+    QTreeView* v = get_qobject<QTreeView>(v_v);
+    v->setSortingEnabled(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtreeview_set_alternating_row_colors(value v_v, value v_b) {
+    CAMLparam2(v_v, v_b);
+    QTreeView* v = get_qobject<QTreeView>(v_v);
+    v->setAlternatingRowColors(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtreeview_expand_all(value v_v) {
+    CAMLparam1(v_v);
+    QTreeView* v = get_qobject<QTreeView>(v_v);
+    v->expandAll();
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtreeview_collapse_all(value v_v) {
+    CAMLparam1(v_v);
+    QTreeView* v = get_qobject<QTreeView>(v_v);
+    v->collapseAll();
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qtreeview_header(value v_v) {
+    CAMLparam1(v_v);
+    QTreeView* v = get_qobject<QTreeView>(v_v);
+    CAMLreturn(alloc_qobject(v->header(), false));
+}
+
+CAMLprim value caml_oqt6_qtreeview_selection_model(value v_v) {
+    CAMLparam1(v_v);
+    QTreeView* v = get_qobject<QTreeView>(v_v);
+    CAMLreturn(alloc_qobject(v->selectionModel(), false));
+}
+
+CAMLprim value caml_oqt6_qtreeview_connect_clicked(value v_v, value v_cb) {
+    CAMLparam2(v_v, v_cb);
+    QTreeView* v = get_qobject<QTreeView>(v_v);
+    value* root = new value;
+    *root = v_cb;
+    caml_register_global_root(root);
+
+    QObject::connect(v, &QTreeView::clicked, [root](const QModelIndex& index) {
+        CamlDomainLockGuard guard;
+        value args[2] = { Val_int(index.row()), Val_int(index.column()) };
+        caml_callbackN_exn(*root, 2, args);
+    });
+    connect_root_cleanup(v, root);
+
+    CAMLreturn(Val_unit);
+}
+
+/* QListView primitives */
+
+CAMLprim value caml_oqt6_qlistview_create(value v_parent) {
+    CAMLparam1(v_parent);
+    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
+    QListView* v = new QListView(parent);
+    CAMLreturn(alloc_qobject(v, !Is_block(v_parent)));
+}
+
+CAMLprim value caml_oqt6_qlistview_set_model(value v_v, value v_m) {
+    CAMLparam2(v_v, v_m);
+    QListView* v = get_qobject<QListView>(v_v);
+    QAbstractItemModel* m = get_qobject<QAbstractItemModel>(v_m);
+    v->setModel(m);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qlistview_set_selection_behavior(value v_v, value v_beh) {
+    CAMLparam2(v_v, v_beh);
+    QListView* v = get_qobject<QListView>(v_v);
+    v->setSelectionBehavior(static_cast<QAbstractItemView::SelectionBehavior>(Int_val(v_beh)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qlistview_set_selection_mode(value v_v, value v_mode) {
+    CAMLparam2(v_v, v_mode);
+    QListView* v = get_qobject<QListView>(v_v);
+    v->setSelectionMode(static_cast<QAbstractItemView::SelectionMode>(Int_val(v_mode)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qlistview_selection_model(value v_v) {
+    CAMLparam1(v_v);
+    QListView* v = get_qobject<QListView>(v_v);
+    CAMLreturn(alloc_qobject(v->selectionModel(), false));
+}
+
+CAMLprim value caml_oqt6_qlistview_connect_clicked(value v_v, value v_cb) {
+    CAMLparam2(v_v, v_cb);
+    QListView* v = get_qobject<QListView>(v_v);
+    value* root = new value;
+    *root = v_cb;
+    caml_register_global_root(root);
+
+    QObject::connect(v, &QListView::clicked, [root](const QModelIndex& index) {
+        CamlDomainLockGuard guard;
+        caml_callback_exn(*root, Val_int(index.row()));
+    });
+    connect_root_cleanup(v, root);
+
+    CAMLreturn(Val_unit);
+}
+
+/* QHeaderView primitives */
+
+CAMLprim value caml_oqt6_qheaderview_set_stretch_last_section(value v_h, value v_b) {
+    CAMLparam2(v_h, v_b);
+    QHeaderView* h = get_qobject<QHeaderView>(v_h);
+    h->setStretchLastSection(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qheaderview_is_stretch_last_section(value v_h) {
+    CAMLparam1(v_h);
+    QHeaderView* h = get_qobject<QHeaderView>(v_h);
+    CAMLreturn(Val_bool(h->stretchLastSection()));
+}
+
+CAMLprim value caml_oqt6_qheaderview_set_section_resize_mode(value v_h, value v_mode) {
+    CAMLparam2(v_h, v_mode);
+    QHeaderView* h = get_qobject<QHeaderView>(v_h);
+    h->setSectionResizeMode(static_cast<QHeaderView::ResizeMode>(Int_val(v_mode)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qheaderview_set_section_resize_mode_section(value v_h, value v_logical_index, value v_mode) {
+    CAMLparam3(v_h, v_logical_index, v_mode);
+    QHeaderView* h = get_qobject<QHeaderView>(v_h);
+    h->setSectionResizeMode(Int_val(v_logical_index), static_cast<QHeaderView::ResizeMode>(Int_val(v_mode)));
+    CAMLreturn(Val_unit);
+}
+
+/* QItemSelectionModel primitives */
+
+CAMLprim value caml_oqt6_qitemselectionmodel_clear_selection(value v_s) {
+    CAMLparam1(v_s);
+    QItemSelectionModel* s = get_qobject<QItemSelectionModel>(v_s);
+    s->clearSelection();
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qitemselectionmodel_has_selection(value v_s) {
+    CAMLparam1(v_s);
+    QItemSelectionModel* s = get_qobject<QItemSelectionModel>(v_s);
+    CAMLreturn(Val_bool(s->hasSelection()));
+}
+
+CAMLprim value caml_oqt6_qitemselectionmodel_selected_rows(value v_s) {
+    CAMLparam1(v_s);
+    CAMLlocal2(list, cons);
+    QItemSelectionModel* s = get_qobject<QItemSelectionModel>(v_s);
+    QModelIndexList indexes = s->selectedRows();
+    list = Val_emptylist;
+    for (int i = indexes.size() - 1; i >= 0; --i) {
+        cons = caml_alloc(2, 0);
+        Store_field(cons, 0, Val_int(indexes[i].row()));
+        Store_field(cons, 1, list);
+        list = cons;
+    }
+    CAMLreturn(list);
+}
+
+CAMLprim value caml_oqt6_qitemselectionmodel_current_row(value v_s) {
+    CAMLparam1(v_s);
+    QItemSelectionModel* s = get_qobject<QItemSelectionModel>(v_s);
+    CAMLreturn(Val_int(s->currentIndex().row()));
+}
+
+CAMLprim value caml_oqt6_qitemselectionmodel_current_column(value v_s) {
+    CAMLparam1(v_s);
+    QItemSelectionModel* s = get_qobject<QItemSelectionModel>(v_s);
+    CAMLreturn(Val_int(s->currentIndex().column()));
+}
+
+CAMLprim value caml_oqt6_qitemselectionmodel_connect_selection_changed(value v_s, value v_cb) {
+    CAMLparam2(v_s, v_cb);
+    QItemSelectionModel* s = get_qobject<QItemSelectionModel>(v_s);
+    value* root = new value;
+    *root = v_cb;
+    caml_register_global_root(root);
+
+    QObject::connect(s, &QItemSelectionModel::selectionChanged, [root](const QItemSelection&, const QItemSelection&) {
+        CamlDomainLockGuard guard;
+        caml_callback_exn(*root, Val_unit);
+    });
+    connect_root_cleanup(s, root);
+
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qitemselectionmodel_connect_current_changed(value v_s, value v_cb) {
+    CAMLparam2(v_s, v_cb);
+    QItemSelectionModel* s = get_qobject<QItemSelectionModel>(v_s);
+    value* root = new value;
+    *root = v_cb;
+    caml_register_global_root(root);
+
+    QObject::connect(s, &QItemSelectionModel::currentChanged, [root](const QModelIndex& current, const QModelIndex&) {
+        CamlDomainLockGuard guard;
+        value args[2] = { Val_int(current.row()), Val_int(current.column()) };
+        caml_callbackN_exn(*root, 2, args);
+    });
+    connect_root_cleanup(s, root);
+
     CAMLreturn(Val_unit);
 }
 

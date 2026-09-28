@@ -10,6 +10,9 @@ type mouse_button = Widgets.mouse_button
 type mouse_event = Widgets.mouse_event
 type key_event = Widgets.key_event
 type resize_event = Widgets.resize_event
+type selection_behavior = Widgets.selection_behavior
+type selection_mode = Widgets.selection_mode
+type header_resize_mode = Widgets.header_resize_mode
 
 module Object = Core.Object
 module Timer = Core.Timer
@@ -43,3 +46,11 @@ module StatusBar = Widgets.StatusBar
 module Dialog = Widgets.Dialog
 module MessageBox = Widgets.MessageBox
 module FileDialog = Widgets.FileDialog
+
+module StandardItemModel = Widgets.StandardItemModel
+module TableModel = Widgets.TableModel
+module TableView = Widgets.TableView
+module TreeView = Widgets.TreeView
+module ListView = Widgets.ListView
+module HeaderView = Widgets.HeaderView
+module ItemSelectionModel = Widgets.ItemSelectionModel

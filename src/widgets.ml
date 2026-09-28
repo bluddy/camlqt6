@@ -4,6 +4,27 @@ let int_of_orientation = function
   | `Horizontal -> 0
   | `Vertical -> 1
 
+type selection_behavior = [ `Select_items | `Select_rows | `Select_columns ]
+let int_of_selection_behavior = function
+  | `Select_items -> 0
+  | `Select_rows -> 1
+  | `Select_columns -> 2
+
+type selection_mode = [ `No_selection | `Single_selection | `Multi_selection | `Extended_selection | `Contiguous_selection ]
+let int_of_selection_mode = function
+  | `No_selection -> 0
+  | `Single_selection -> 1
+  | `Multi_selection -> 2
+  | `Extended_selection -> 3
+  | `Contiguous_selection -> 4
+
+type header_resize_mode = [ `Interactive | `Stretch | `Fixed | `Resize_to_contents ]
+let int_of_header_resize_mode = function
+  | `Interactive -> 0
+  | `Stretch -> 1
+  | `Fixed -> 2
+  | `Resize_to_contents -> 3
+
 type mouse_button = [ `Left_button | `Right_button | `Middle_button | `No_button ]
 type mouse_event = { x : int; y : int; button : mouse_button }
 type key_event = { key : int; text : string }
@@ -33,6 +54,18 @@ type qaction = [ Core.qobject | `QAction ]
 type qstatus_bar = [ qwidget | `QStatusBar ]
 type qdialog = [ qwidget | `QDialog ]
 type qapplication = [ Core.qobject | `QApplication ]
+
+type qabstract_item_model = [ Core.qobject | `QAbstractItemModel ]
+type qabstract_table_model = [ qabstract_item_model | `QAbstractTableModel ]
+type qstandard_item_model = [ qabstract_item_model | `QStandardItemModel ]
+type qocaml_table_model = [ qabstract_table_model | `QOCamlTableModel ]
+
+type qabstract_item_view = [ qwidget | `QAbstractItemView ]
+type qtable_view = [ qabstract_item_view | `QTableView ]
+type qtree_view = [ qabstract_item_view | `QTreeView ]
+type qlist_view = [ qabstract_item_view | `QListView ]
+type qheader_view = [ qwidget | `QHeaderView ]
+type qitem_selection_model = [ Core.qobject | `QItemSelectionModel ]
 
 (* Application *)
 external qapp_create : string array option -> qapplication Core.t = "caml_oqt6_qapplication_create"
@@ -489,4 +522,164 @@ module Layout = struct
   let add_layout l ?stretch sub = qboxlayout_add_layout l stretch sub
   let add_stretch l ?stretch () = qboxlayout_add_stretch l stretch
   let add_spacing = qboxlayout_add_spacing
+end
+
+(* ItemSelectionModel *)
+external qitemselectionmodel_clear_selection : 'a Core.t -> unit = "caml_oqt6_qitemselectionmodel_clear_selection"
+external qitemselectionmodel_has_selection : 'a Core.t -> bool = "caml_oqt6_qitemselectionmodel_has_selection"
+external qitemselectionmodel_selected_rows : 'a Core.t -> int list = "caml_oqt6_qitemselectionmodel_selected_rows"
+external qitemselectionmodel_current_row : 'a Core.t -> int = "caml_oqt6_qitemselectionmodel_current_row"
+external qitemselectionmodel_current_column : 'a Core.t -> int = "caml_oqt6_qitemselectionmodel_current_column"
+external qitemselectionmodel_connect_selection_changed : 'a Core.t -> (unit -> unit) -> unit = "caml_oqt6_qitemselectionmodel_connect_selection_changed"
+external qitemselectionmodel_connect_current_changed : 'a Core.t -> (int -> int -> unit) -> unit = "caml_oqt6_qitemselectionmodel_connect_current_changed"
+
+module ItemSelectionModel = struct
+  let clear_selection = qitemselectionmodel_clear_selection
+  let has_selection = qitemselectionmodel_has_selection
+  let selected_rows = qitemselectionmodel_selected_rows
+  let current_row = qitemselectionmodel_current_row
+  let current_column = qitemselectionmodel_current_column
+  let on_selection_changed = qitemselectionmodel_connect_selection_changed
+  let on_current_changed = qitemselectionmodel_connect_current_changed
+end
+
+(* HeaderView *)
+external qheaderview_set_stretch_last_section : 'a Core.t -> bool -> unit = "caml_oqt6_qheaderview_set_stretch_last_section"
+external qheaderview_is_stretch_last_section : 'a Core.t -> bool = "caml_oqt6_qheaderview_is_stretch_last_section"
+external qheaderview_set_section_resize_mode : 'a Core.t -> int -> unit = "caml_oqt6_qheaderview_set_section_resize_mode"
+external qheaderview_set_section_resize_mode_section : 'a Core.t -> int -> int -> unit = "caml_oqt6_qheaderview_set_section_resize_mode_section"
+
+module HeaderView = struct
+  let set_stretch_last_section = qheaderview_set_stretch_last_section
+  let is_stretch_last_section = qheaderview_is_stretch_last_section
+  let set_section_resize_mode h ?section mode =
+    let m = int_of_header_resize_mode mode in
+    match section with
+    | None -> qheaderview_set_section_resize_mode h m
+    | Some s -> qheaderview_set_section_resize_mode_section h s m
+end
+
+(* StandardItemModel *)
+external qstandarditemmodel_create : int option -> int option -> 'a Core.t option -> qstandard_item_model Core.t = "caml_oqt6_qstandarditemmodel_create"
+external qstandarditemmodel_set_item : 'a Core.t -> int -> int -> string -> unit = "caml_oqt6_qstandarditemmodel_set_item"
+external qstandarditemmodel_item_text : 'a Core.t -> int -> int -> string = "caml_oqt6_qstandarditemmodel_item_text"
+external qstandarditemmodel_set_horizontal_header_labels : 'a Core.t -> string list -> unit = "caml_oqt6_qstandarditemmodel_set_horizontal_header_labels"
+external qstandarditemmodel_set_vertical_header_labels : 'a Core.t -> string list -> unit = "caml_oqt6_qstandarditemmodel_set_vertical_header_labels"
+external qstandarditemmodel_row_count : 'a Core.t -> int = "caml_oqt6_qstandarditemmodel_row_count"
+external qstandarditemmodel_column_count : 'a Core.t -> int = "caml_oqt6_qstandarditemmodel_column_count"
+external qstandarditemmodel_clear : 'a Core.t -> unit = "caml_oqt6_qstandarditemmodel_clear"
+external qstandarditemmodel_append_row : 'a Core.t -> string list -> unit = "caml_oqt6_qstandarditemmodel_append_row"
+external qstandarditemmodel_remove_row : 'a Core.t -> int -> unit = "caml_oqt6_qstandarditemmodel_remove_row"
+external qstandarditemmodel_remove_column : 'a Core.t -> int -> unit = "caml_oqt6_qstandarditemmodel_remove_column"
+
+module StandardItemModel = struct
+  let create ?rows ?cols ?parent () = qstandarditemmodel_create rows cols parent
+  let set_item m ~row ~col ~text = qstandarditemmodel_set_item m row col text
+  let item_text m ~row ~col = qstandarditemmodel_item_text m row col
+  let set_horizontal_header_labels = qstandarditemmodel_set_horizontal_header_labels
+  let set_vertical_header_labels = qstandarditemmodel_set_vertical_header_labels
+  let row_count = qstandarditemmodel_row_count
+  let column_count = qstandarditemmodel_column_count
+  let clear = qstandarditemmodel_clear
+  let append_row = qstandarditemmodel_append_row
+  let remove_row = qstandarditemmodel_remove_row
+  let remove_column = qstandarditemmodel_remove_column
+end
+
+(* TableModel *)
+external qtablemodel_create : 'a Core.t option -> qocaml_table_model Core.t = "caml_oqt6_tablemodel_create"
+external qtablemodel_set_callbacks : 'a Core.t -> (unit -> int) -> (unit -> int) -> (int -> int -> string) -> (int -> int -> string) option -> unit = "caml_oqt6_tablemodel_set_callbacks"
+external qtablemodel_notify_reset : 'a Core.t -> unit = "caml_oqt6_tablemodel_notify_reset"
+external qtablemodel_notify_data_changed : 'a Core.t -> int -> int -> int -> int -> unit = "caml_oqt6_tablemodel_notify_data_changed"
+
+module TableModel = struct
+  let create ?parent ~row_count ~col_count ~data ?header_data () =
+    let m = qtablemodel_create parent in
+    let header_cb = Option.map (fun cb sec orient_int ->
+      let orient = if orient_int = 0 then `Horizontal else `Vertical in
+      cb sec orient
+    ) header_data in
+    qtablemodel_set_callbacks m row_count col_count data header_cb;
+    m
+
+  let notify_reset = qtablemodel_notify_reset
+  let notify_data_changed m ~top_row ~left_col ~bottom_row ~right_col =
+    qtablemodel_notify_data_changed m top_row left_col bottom_row right_col
+end
+
+(* TableView *)
+external qtableview_create : 'a Core.t option -> qtable_view Core.t = "caml_oqt6_qtableview_create"
+external qtableview_set_model : 'a Core.t -> 'b Core.t -> unit = "caml_oqt6_qtableview_set_model"
+external qtableview_set_selection_behavior : 'a Core.t -> int -> unit = "caml_oqt6_qtableview_set_selection_behavior"
+external qtableview_set_selection_mode : 'a Core.t -> int -> unit = "caml_oqt6_qtableview_set_selection_mode"
+external qtableview_set_sorting_enabled : 'a Core.t -> bool -> unit = "caml_oqt6_qtableview_set_sorting_enabled"
+external qtableview_set_show_grid : 'a Core.t -> bool -> unit = "caml_oqt6_qtableview_set_show_grid"
+external qtableview_set_alternating_row_colors : 'a Core.t -> bool -> unit = "caml_oqt6_qtableview_set_alternating_row_colors"
+external qtableview_resize_columns_to_contents : 'a Core.t -> unit = "caml_oqt6_qtableview_resize_columns_to_contents"
+external qtableview_resize_rows_to_contents : 'a Core.t -> unit = "caml_oqt6_qtableview_resize_rows_to_contents"
+external qtableview_horizontal_header : 'a Core.t -> qheader_view Core.t = "caml_oqt6_qtableview_horizontal_header"
+external qtableview_vertical_header : 'a Core.t -> qheader_view Core.t = "caml_oqt6_qtableview_vertical_header"
+external qtableview_selection_model : 'a Core.t -> qitem_selection_model Core.t = "caml_oqt6_qtableview_selection_model"
+external qtableview_connect_clicked : 'a Core.t -> (int -> int -> unit) -> unit = "caml_oqt6_qtableview_connect_clicked"
+external qtableview_connect_double_clicked : 'a Core.t -> (int -> int -> unit) -> unit = "caml_oqt6_qtableview_connect_double_clicked"
+
+module TableView = struct
+  let create ?parent () = qtableview_create parent
+  let set_model = qtableview_set_model
+  let set_selection_behavior tv beh = qtableview_set_selection_behavior tv (int_of_selection_behavior beh)
+  let set_selection_mode tv mode = qtableview_set_selection_mode tv (int_of_selection_mode mode)
+  let set_sorting_enabled = qtableview_set_sorting_enabled
+  let set_show_grid = qtableview_set_show_grid
+  let set_alternating_row_colors = qtableview_set_alternating_row_colors
+  let resize_columns_to_contents = qtableview_resize_columns_to_contents
+  let resize_rows_to_contents = qtableview_resize_rows_to_contents
+  let horizontal_header = qtableview_horizontal_header
+  let vertical_header = qtableview_vertical_header
+  let selection_model = qtableview_selection_model
+  let on_clicked = qtableview_connect_clicked
+  let on_double_clicked = qtableview_connect_double_clicked
+end
+
+(* TreeView *)
+external qtreeview_create : 'a Core.t option -> qtree_view Core.t = "caml_oqt6_qtreeview_create"
+external qtreeview_set_model : 'a Core.t -> 'b Core.t -> unit = "caml_oqt6_qtreeview_set_model"
+external qtreeview_set_selection_behavior : 'a Core.t -> int -> unit = "caml_oqt6_qtreeview_set_selection_behavior"
+external qtreeview_set_selection_mode : 'a Core.t -> int -> unit = "caml_oqt6_qtreeview_set_selection_mode"
+external qtreeview_set_sorting_enabled : 'a Core.t -> bool -> unit = "caml_oqt6_qtreeview_set_sorting_enabled"
+external qtreeview_set_alternating_row_colors : 'a Core.t -> bool -> unit = "caml_oqt6_qtreeview_set_alternating_row_colors"
+external qtreeview_expand_all : 'a Core.t -> unit = "caml_oqt6_qtreeview_expand_all"
+external qtreeview_collapse_all : 'a Core.t -> unit = "caml_oqt6_qtreeview_collapse_all"
+external qtreeview_header : 'a Core.t -> qheader_view Core.t = "caml_oqt6_qtreeview_header"
+external qtreeview_selection_model : 'a Core.t -> qitem_selection_model Core.t = "caml_oqt6_qtreeview_selection_model"
+external qtreeview_connect_clicked : 'a Core.t -> (int -> int -> unit) -> unit = "caml_oqt6_qtreeview_connect_clicked"
+
+module TreeView = struct
+  let create ?parent () = qtreeview_create parent
+  let set_model = qtreeview_set_model
+  let set_selection_behavior tv beh = qtreeview_set_selection_behavior tv (int_of_selection_behavior beh)
+  let set_selection_mode tv mode = qtreeview_set_selection_mode tv (int_of_selection_mode mode)
+  let set_sorting_enabled = qtreeview_set_sorting_enabled
+  let set_alternating_row_colors = qtreeview_set_alternating_row_colors
+  let expand_all = qtreeview_expand_all
+  let collapse_all = qtreeview_collapse_all
+  let header = qtreeview_header
+  let selection_model = qtreeview_selection_model
+  let on_clicked = qtreeview_connect_clicked
+end
+
+(* ListView *)
+external qlistview_create : 'a Core.t option -> qlist_view Core.t = "caml_oqt6_qlistview_create"
+external qlistview_set_model : 'a Core.t -> 'b Core.t -> unit = "caml_oqt6_qlistview_set_model"
+external qlistview_set_selection_behavior : 'a Core.t -> int -> unit = "caml_oqt6_qlistview_set_selection_behavior"
+external qlistview_set_selection_mode : 'a Core.t -> int -> unit = "caml_oqt6_qlistview_set_selection_mode"
+external qlistview_selection_model : 'a Core.t -> qitem_selection_model Core.t = "caml_oqt6_qlistview_selection_model"
+external qlistview_connect_clicked : 'a Core.t -> (int -> unit) -> unit = "caml_oqt6_qlistview_connect_clicked"
+
+module ListView = struct
+  let create ?parent () = qlistview_create parent
+  let set_model = qlistview_set_model
+  let set_selection_behavior lv beh = qlistview_set_selection_behavior lv (int_of_selection_behavior beh)
+  let set_selection_mode lv mode = qlistview_set_selection_mode lv (int_of_selection_mode mode)
+  let selection_model = qlistview_selection_model
+  let on_clicked = qlistview_connect_clicked
 end

@@ -97,16 +97,20 @@ flowchart LR
 
 ---
 
-### Phase 3: Model / View / Delegate Architecture
+### Phase 3: Model / View / Delegate Architecture — [COMPLETED]
 *Goal: High-performance data display and tables for data-dense applications.*
 
 1. **Views:**
-   - `QTableView`, `QTreeView`, `QListView`.
+   - [x] `QTableView`: Sorting, grid display, alternating row colors, column/row content auto-resizing, double-click & click signals.
+   - [x] `QTreeView`: Expand all, collapse all, tree header.
+   - [x] `QListView`: List selection and row click signals.
+   - [x] `QHeaderView`: Last section stretch, interactive/stretch/fixed/contents resize modes.
 2. **Models:**
-   - `QStandardItemModel` (simple tree/table model).
-   - `QAbstractItemModel` bridge allowing pure OCaml functional data structures (records, arrays, maps) to back a Qt table/tree with zero copying.
+   - [x] `QStandardItemModel`: Imperative item-by-item table/tree model with header labels, row appending, clearing, and row/column removal.
+   - [x] `TableModel` (`OCamlTableModel : public QAbstractTableModel`): Zero-copy functional table model binding arbitrary OCaml in-memory data structures (arrays of records, tuples, maps) directly into Qt views with `notify_reset` and `notify_data_changed`.
 3. **Selection Models:**
-   - `QItemSelectionModel` (current row, selected ranges, multi-selection).
+   - [x] `QItemSelectionModel`: Current index, selected rows list, selection change notifications.
+   - [x] Interactive demo: [examples/table_view_demo.ml](file:///home/yotam/source/ocaml/oqt6/examples/table_view_demo.ml).
 
 ---
 

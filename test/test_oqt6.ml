@@ -205,9 +205,11 @@ let () =
   Brush.set_style b `No_brush;
 
   (* 17. Test Canvas & Painter *)
-  let canvas = Canvas.create ~parent:win () in
+  let canvas_win = Widget.create () in
+  Widget.resize canvas_win ~width:300 ~height:300;
+  let canvas = Canvas.create ~parent:canvas_win () in
   assert (Object.is_valid canvas);
-  Widget.resize canvas ~width:200 ~height:200;
+  Widget.resize canvas ~width:300 ~height:300;
   Canvas.set_mouse_tracking canvas true;
 
   let paint_count = ref 0 in
@@ -241,10 +243,93 @@ let () =
     assert (ev.width >= 0)
   );
 
-  Layout.add_widget layout canvas;
+  Widget.show canvas_win;
   Canvas.update canvas;
 
-  (* 18. Test Timer and Event Loop *)
+  (* 18. Test StandardItemModel *)
+  let std_model = StandardItemModel.create ~rows:2 ~cols:2 () in
+  assert (Object.is_valid std_model);
+  assert (StandardItemModel.row_count std_model = 2);
+  assert (StandardItemModel.column_count std_model = 2);
+  StandardItemModel.set_item std_model ~row:0 ~col:0 ~text:"Cell 0,0";
+  assert (StandardItemModel.item_text std_model ~row:0 ~col:0 = "Cell 0,0");
+  StandardItemModel.set_horizontal_header_labels std_model ["H1"; "H2"];
+  StandardItemModel.append_row std_model ["R3C1"; "R3C2"];
+  assert (StandardItemModel.row_count std_model = 3);
+  StandardItemModel.remove_row std_model 0;
+  assert (StandardItemModel.row_count std_model = 2);
+
+  (* 19. Test Functional TableModel *)
+  let records = [|
+    ("Caml", "Functional", "1996");
+    ("OCaml", "Multi-paradigm", "1996");
+    ("Qt6", "C++ GUI", "2020");
+  |] in
+  let table_model = TableModel.create
+    ~row_count:(fun () -> Array.length records)
+    ~col_count:(fun () -> 3)
+    ~data:(fun r c ->
+      let (name, kind, year) = records.(r) in
+      match c with 0 -> name | 1 -> kind | _ -> year)
+    ~header_data:(fun sec orient ->
+      if orient = `Horizontal then
+        match sec with 0 -> "Name" | 1 -> "Type" | _ -> "Year"
+      else
+        string_of_int (sec + 1))
+    ()
+  in
+  assert (Object.is_valid table_model);
+  TableModel.notify_reset table_model;
+  TableModel.notify_data_changed table_model ~top_row:0 ~left_col:0 ~bottom_row:2 ~right_col:2;
+
+  (* 20. Test TableView, HeaderView, ItemSelectionModel *)
+  let tv = TableView.create ~parent:win () in
+  assert (Object.is_valid tv);
+  TableView.set_model tv table_model;
+  TableView.set_selection_behavior tv `Select_rows;
+  TableView.set_selection_mode tv `Single_selection;
+  TableView.set_sorting_enabled tv true;
+  TableView.set_alternating_row_colors tv true;
+  TableView.resize_columns_to_contents tv;
+  TableView.resize_rows_to_contents tv;
+
+  let h_header = TableView.horizontal_header tv in
+  assert (Object.is_valid h_header);
+  HeaderView.set_stretch_last_section h_header true;
+  assert (HeaderView.is_stretch_last_section h_header);
+  HeaderView.set_section_resize_mode h_header `Stretch;
+
+  let v_header = TableView.vertical_header tv in
+  assert (Object.is_valid v_header);
+
+  let tv_sel = TableView.selection_model tv in
+  assert (Object.is_valid tv_sel);
+  assert (not (ItemSelectionModel.has_selection tv_sel));
+  assert (ItemSelectionModel.selected_rows tv_sel = []);
+  ItemSelectionModel.clear_selection tv_sel;
+
+  TableView.on_clicked tv (fun _r _c -> ());
+  TableView.on_double_clicked tv (fun _r _c -> ());
+  Layout.add_widget layout tv;
+
+  (* 21. Test TreeView *)
+  let tree = TreeView.create ~parent:win () in
+  assert (Object.is_valid tree);
+  TreeView.set_model tree std_model;
+  TreeView.expand_all tree;
+  TreeView.collapse_all tree;
+  let tree_header = TreeView.header tree in
+  assert (Object.is_valid tree_header);
+  Layout.add_widget layout tree;
+
+  (* 22. Test ListView *)
+  let list_v = ListView.create ~parent:win () in
+  assert (Object.is_valid list_v);
+  ListView.set_model list_v std_model;
+  ListView.set_selection_behavior list_v `Select_items;
+  Layout.add_widget layout list_v;
+
+  (* 23. Test Timer and Event Loop *)
   let timer_fired = ref false in
   Timer.single_shot 50 (fun () ->
     timer_fired := true;
