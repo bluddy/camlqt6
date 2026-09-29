@@ -115,6 +115,8 @@ external qwidget_set_layout : 'a Core.t -> 'b Core.t -> unit = "caml_oqt6_qwidge
 external qwidget_set_style_sheet : 'a Core.t -> string -> unit = "caml_oqt6_qwidget_set_style_sheet"
 external qwidget_update : 'a Core.t -> unit = "caml_oqt6_qwidget_update"
 external qwidget_set_mouse_tracking : 'a Core.t -> bool -> unit = "caml_oqt6_qwidget_set_mouse_tracking"
+external qwidget_set_accept_drops : 'a Core.t -> bool -> unit = "caml_oqt6_qwidget_set_accept_drops"
+external qwidget_accept_drops : 'a Core.t -> bool = "caml_oqt6_qwidget_accept_drops"
 
 module Widget = struct
   let create ?parent () = qwidget_create parent
@@ -135,6 +137,8 @@ module Widget = struct
   let set_style_sheet = qwidget_set_style_sheet
   let update = qwidget_update
   let set_mouse_tracking = qwidget_set_mouse_tracking
+  let set_accept_drops = qwidget_set_accept_drops
+  let accept_drops = qwidget_accept_drops
   let as_widget = Core.cast
 end
 
@@ -349,6 +353,10 @@ external qcanvas_on_mouse_release : 'a Core.t -> (int -> int -> int -> unit) -> 
 external qcanvas_on_mouse_move : 'a Core.t -> (int -> int -> int -> unit) -> unit = "caml_oqt6_qcanvas_on_mouse_move"
 external qcanvas_on_key_press : 'a Core.t -> (int -> string -> unit) -> unit = "caml_oqt6_qcanvas_on_key_press"
 external qcanvas_on_resize : 'a Core.t -> (int -> int -> int -> int -> unit) -> unit = "caml_oqt6_qcanvas_on_resize"
+external qcanvas_on_drag_enter : 'a Core.t -> (int -> int -> 'b Core.t -> bool) -> unit = "caml_oqt6_qcanvas_on_drag_enter"
+external qcanvas_on_drag_move : 'a Core.t -> (int -> int -> 'b Core.t -> bool) -> unit = "caml_oqt6_qcanvas_on_drag_move"
+external qcanvas_on_drag_leave : 'a Core.t -> (unit -> unit) -> unit = "caml_oqt6_qcanvas_on_drag_leave"
+external qcanvas_on_drop : 'a Core.t -> (int -> int -> 'b Core.t -> unit) -> unit = "caml_oqt6_qcanvas_on_drop"
 
 module Canvas = struct
   let create ?parent () = qcanvas_create parent
@@ -372,6 +380,11 @@ module Canvas = struct
 
   let on_resize c cb =
     qcanvas_on_resize c (fun width height old_width old_height -> cb { width; height; old_width; old_height })
+
+  let on_drag_enter c cb = qcanvas_on_drag_enter c (fun x y mime -> cb ~x ~y mime)
+  let on_drag_move c cb = qcanvas_on_drag_move c (fun x y mime -> cb ~x ~y mime)
+  let on_drag_leave = qcanvas_on_drag_leave
+  let on_drop c cb = qcanvas_on_drop c (fun x y mime -> cb ~x ~y mime)
 
   let update = qwidget_update
   let set_mouse_tracking = qwidget_set_mouse_tracking

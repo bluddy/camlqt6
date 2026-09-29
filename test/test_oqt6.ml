@@ -526,7 +526,75 @@ let () =
   State.set slider_state 88;
   assert (State.get slider_state = 88);
 
-  (* 34. Test Timer and Event Loop *)
+  (* 35. Test QMimeData *)
+  let mime = MimeData.create () in
+  assert (Object.is_valid mime);
+  assert (not (MimeData.has_text mime));
+  MimeData.set_text mime "Drag & Drop Payload";
+  assert (MimeData.has_text mime);
+  assert (MimeData.text mime = Some "Drag & Drop Payload");
+
+  assert (not (MimeData.has_urls mime));
+  MimeData.set_urls mime ["file:///tmp/sample.txt"; "https://ocaml.org"];
+  assert (MimeData.has_urls mime);
+  assert (List.length (MimeData.urls mime) = 2);
+
+  assert (not (MimeData.has_html mime));
+  MimeData.set_html mime "<h1>Title</h1>";
+  assert (MimeData.has_html mime);
+  assert (MimeData.html mime = Some "<h1>Title</h1>");
+
+  MimeData.set_data mime "application/x-custom-type" "binary\x00data";
+  assert (MimeData.data mime "application/x-custom-type" = Some "binary\x00data");
+
+  MimeData.clear mime;
+  assert (not (MimeData.has_text mime));
+
+  (* 36. Test QClipboard *)
+  Clipboard.set_text "OQt6 Clipboard Data";
+  assert (Clipboard.text () = Some "OQt6 Clipboard Data");
+
+  let clip_pix = Pixmap.create ~width:32 ~height:32 in
+  Pixmap.fill clip_pix (Color.rgb 255 128 0 ());
+  Clipboard.set_pixmap clip_pix;
+  assert (Clipboard.pixmap () <> None);
+
+  let clip_mime = MimeData.create () in
+  MimeData.set_text clip_mime "Mime through clipboard";
+  Clipboard.set_mime_data clip_mime;
+  assert (Clipboard.text () = Some "Mime through clipboard");
+
+  Clipboard.clear ();
+
+  (* 37. Test QWidget and Canvas Drag & Drop *)
+  let drop_target = Canvas.create ~parent:win () in
+  assert (not (Widget.accept_drops drop_target));
+  Widget.set_accept_drops drop_target true;
+  assert (Widget.accept_drops drop_target);
+
+  let drop_invoked = ref false in
+  ignore drop_invoked;
+  Canvas.on_drag_enter drop_target (fun ~x:_ ~y:_ mime_ev ->
+    MimeData.has_text mime_ev
+  );
+  Canvas.on_drag_move drop_target (fun ~x:_ ~y:_ _ -> true);
+  Canvas.on_drag_leave drop_target (fun () -> ());
+  Canvas.on_drop drop_target (fun ~x:_ ~y:_ _ ->
+    drop_invoked := true
+  );
+  assert (Widget.accept_drops drop_target);
+
+  (* 38. Test QDrag construction and configuration *)
+  let drag = Drag.create drop_target in
+  assert (Object.is_valid drag);
+  let drag_payload = MimeData.create () in
+  MimeData.set_text drag_payload "Dragged text";
+  Drag.set_mime_data drag drag_payload;
+  assert (Drag.mime_data drag <> None);
+  Drag.set_pixmap drag clip_pix;
+  Drag.set_hot_spot drag ~x:16 ~y:16;
+
+  (* 39. Test Timer and Event Loop *)
   let timer_fired = ref false in
   Timer.single_shot 50 (fun () ->
     timer_fired := true;

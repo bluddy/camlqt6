@@ -2,7 +2,7 @@
 
 [![OCaml 5.x](https://img.shields.io/badge/OCaml-5.x-orange.svg)](https://ocaml.org/)
 [![Qt 6.x](https://img.shields.io/badge/Qt-6.x-green.svg)](https://www.qt.io/)
-[![Build & Test](https://img.shields.io/badge/Tests-Passing%20(34%2F34)-brightgreen.svg)]()
+[![Build & Test](https://img.shields.io/badge/Tests-Passing%20(39%2F39)-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 `oqt6` provides safe, modern, and idiomatic OCaml bindings for the **Qt 6** application framework. Designed from the ground up for **OCaml 5 Multicore**, `oqt6` supports both classic imperative Qt widget construction and modern functional reactive programming (FRP) with declarative UI trees.
@@ -26,6 +26,33 @@
 
 For full architectural details, see [docs/ARCHITECTURE.md](file:///home/yotam/source/ocaml/oqt6/docs/ARCHITECTURE.md).
 For a step-by-step tutorial, see [docs/TUTORIAL.md](file:///home/yotam/source/ocaml/oqt6/docs/TUTORIAL.md).
+
+---
+
+## Project Scope & Design Philosophy
+
+`oqt6` is intentionally scoped to provide a premier, native **desktop GUI programming** experience for OCaml.
+
+### What is In Scope: Native Desktop GUI & Functional Reactivity
+- **Complete Native GUI Workflows:** Core windows (`QMainWindow`), layouts (`VBox`, `HBox`, `Grid`), controls (`Button`, `LineEdit`, `TextEdit`, `ComboBox`, `Slider`, `SpinBox`, etc.), and complex containers (`TabWidget`, `StackedWidget`, `Splitter`, `ScrollArea`, `GroupBox`).
+- **Declarative & Reactive UI:** Modern component tree builder (`Dsl`) with reactive state primitives (`State.create`, `State.map`), bidirectional widget synchronization, and dynamic switching (`cond`, `match_s`).
+- **Data-Dense Model/View Architecture:** Tables, trees, lists, and a zero-copy functional `TableModel` that directly exposes native OCaml data structures to Qt views without copying.
+- **Custom 2D Vector Painting & Canvas:** Full `QPainter` support (lines, shapes, text, affine transforms, pixmap blitting) and virtual event trampolines (`paintEvent`, mouse, keyboard, resize, drag & drop).
+- **Desktop System Integrations:** Native file pickers, message boxes, color/font dialogs, system clipboard (`Clipboard`), and drag-and-drop protocols (`Drag`, `MimeData`).
+- **Multicore Safety:** Re-entrant lock handling (`CamlDomainLockGuard`) that coordinates safely with OCaml 5 runtime domains.
+
+### What is Intentionally Out of Scope (and Why)
+- **`QtNetwork`:** Network I/O is far better served by native OCaml asynchronous libraries (such as `eio`, `cohttp`, `piaf`, or `curl`) without crossing the C++ FFI boundary.
+- **`QtSql`:** Relational database access in OCaml is idiomatic, type-safe, and mature using native libraries like `caqti` or `pgx`.
+- **`QtSvg`:** Vector graphics rendering in OQt6 is natively powered by `QPainter`. Specialized SVG DOM manipulation is outside the core GUI widget scope.
+- **`QML` / `QtQuick`:** QML has its own runtime engine and is already wrapped for OCaml by `lablqml`. OQt6 focuses on native desktop widgets and its own lightweight OCaml functional reactive DSL.
+- **Peripheral Hardware Stacks (`QtBluetooth`, `QtSensors`, `QtSerialPort`):** These introduce heavy platform-dependent dependencies rarely needed for desktop user interfaces.
+
+### Agent-Driven Engineering vs. Automated Code Generation
+Rather than running an automated Clang AST generator that spits out thousands of mechanical, unidiomatic C-style wrappers (flat argument lists, integer enum codes, manual pointer casting), `oqt6` was built using **agent-driven engineering**:
+1. **Zero-Overhead Compile-Time Subtyping:** Uses phantom polymorphic variants (`[> `QWidget ] Core.t`), allowing any widget subclass to be used in layouts or parent containers without manual runtime casts.
+2. **Polymorphic Variants for Enums:** Typed, expressive variants (e.g. `` `Left_button``, `` `Solid_line``, `` `Stretch``) replace raw C++ enum integers.
+3. **No Generator Dependencies:** The repository contains clean, human-auditable C++ stubs and OCaml source. It builds in seconds with standard `dune build` and zero external generator toolchains.
 
 ---
 
@@ -118,6 +145,7 @@ let () =
 | **Model / View** | `TableView`, `TreeView`, `ListView`, `HeaderView`, `ItemSelectionModel`, `StandardItemModel`, `TableModel` (functional zero-copy) |
 | **2D Vector Graphics**| `Canvas`, `Painter` (lines, rects, rounded rects, ellipses, text, pixmaps, affine transforms: translate/scale/rotate) |
 | **Desktop Dialogs** | `ColorDialog`, `FontDialog`, `InputDialog`, `ProgressDialog`, `FileDialog`, `MessageBox`, `Dialog` |
+| **Desktop Integration** | `Clipboard` (text, pixmap, signals), `Drag`, `MimeData`, Drop Event Trampolines (`Canvas`, `Widget.set_accept_drops`) |
 | **Imaging & Assets** | `Pixmap`, `Icon` (file, pixmap, system theme), `Cursor` (typed shapes) |
 | **Core & Concurrency**| `App`, `Widget`, `Object` (lifetime tracking, delete), `Timer` (single-shot, repeating) |
 
@@ -142,6 +170,9 @@ opam exec -- dune exec examples/drawing_canvas.exe
 
 # Complete Standard Widget Catalog (Phase 1)
 opam exec -- dune exec examples/kitchen_sink.exe
+
+# Drag, Drop & System Clipboard Studio
+opam exec -- dune exec examples/drag_drop_demo.exe
 
 # Minimal Hello World
 opam exec -- dune exec examples/hello.exe
