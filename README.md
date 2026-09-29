@@ -153,6 +153,7 @@ opam exec -- dune exec examples/hello.exe
 
 - [Architecture & Design Details](file:///home/yotam/source/ocaml/oqt6/docs/ARCHITECTURE.md)
 - [Cookbook & Tutorial Guide](file:///home/yotam/source/ocaml/oqt6/docs/TUTORIAL.md)
+- [Windows Testing & Setup Guide](file:///home/yotam/source/ocaml/oqt6/docs/WINDOWS_TESTING.md)
 - [Project Roadmap & Completed Milestones](file:///home/yotam/source/ocaml/oqt6/ROADMAP.md)
 
 ---

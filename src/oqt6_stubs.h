@@ -1,6 +1,10 @@
 #ifndef OQT6_STUBS_H
 #define OQT6_STUBS_H
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
 #ifdef __cplusplus
 #include <QPointer>
 #include <QObject>
