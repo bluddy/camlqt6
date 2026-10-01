@@ -97,16 +97,17 @@ set OQT6_LIBS=-LC:/Qt/6.8.0/mingw_64/lib -lQt6Widgets -lQt6Gui -lQt6Core
 
 ## 4. Building & Running the Tests
 
-Once `QTDIR` and `PATH` are configured:
+`config/discover.ml` automatically searches standard Windows locations (MSYS2 UCRT64 `C:\msys64\ucrt64`, MinGW64 `C:\msys64\mingw64`, and official Qt installs).
 
 ### 4.1 Build
-```cmd
+```powershell
 dune build
 ```
 
 ### 4.2 Automated Headless Test Suite
 Run the 34-case test suite in headless offscreen mode:
-```cmd
+```powershell
+$env:QT_QPA_PLATFORM = "offscreen"
 dune runtest
 ```
 
@@ -124,36 +125,40 @@ Testing memory model and object lifetime tracking...
 
 ## 5. Running the Interactive GUI Demos
 
-You can run any of the interactive desktop demos directly on your Windows desktop:
+On Windows, Qt runtime DLLs must be located at runtime. Use the convenient zero-config runner scripts:
 
-### 1. Declarative To-Do & Reactive Dashboard (Phase 5)
-```cmd
-dune exec examples/declarative_todo.exe
+### Using PowerShell:
+```powershell
+.\run.ps1 hello
+.\run.ps1 declarative_todo
+.\run.ps1 workbench_demo
+.\run.ps1 table_view_demo
+.\run.ps1 drawing_canvas
+.\run.ps1 kitchen_sink
 ```
 
-### 2. Developer Workbench (Phase 4)
+### Using Command Prompt (cmd.exe):
 ```cmd
-dune exec examples/workbench_demo.exe
-```
-
-### 3. High-Performance TableView & Model Demo (Phase 3)
-```cmd
-dune exec examples/table_view_demo.exe
-```
-
-### 4. 2D Vector Drawing Canvas (Phase 2)
-```cmd
-dune exec examples/drawing_canvas.exe
-```
-
-### 5. Kitchen Sink Widget Catalog (Phase 1)
-```cmd
-dune exec examples/kitchen_sink.exe
+run.bat hello
+run.bat declarative_todo
+run.bat workbench_demo
 ```
 
 ---
 
-## 6. Troubleshooting & Windows Gotchas
+## 6. Creating Standalone Windows Application Bundles
+
+To share your OQt6 application with Windows users who **do not have OCaml, Opam, or Qt installed**:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\bundle_windows.ps1 hello
+```
+
+This runs Qt's `windeployqt` tool to copy all required Qt 6 DLLs, plugins, and MinGW C++ runtimes into `dist\hello\`. The resulting folder is 100% self-contained: users can simply unzip and run `hello.exe` on any 64-bit Windows 10/11 system.
+
+---
+
+## 7. Troubleshooting & Windows Gotchas
 
 ### 6.1 `The code execution cannot proceed because Qt6Widgets.dll was not found`
 - **Cause:** Windows runtime linker cannot find Qt DLLs.

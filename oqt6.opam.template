@@ -1,0 +1,10 @@
+depexts: [
+  ["qt6-base-dev" "qt6-base-dev-tools"] {os-distribution = "debian"}
+  ["qt6-base-dev" "qt6-base-dev-tools"] {os-distribution = "ubuntu"}
+  ["qt6-qtbase-devel"] {os-distribution = "fedora"}
+  ["qt6-qtbase-devel"] {os-distribution = "centos"}
+  ["qt6-qtbase-devel"] {os-distribution = "rhel"}
+  ["qt6-base"] {os-distribution = "arch"}
+  ["qt@6"] {os-distribution = "homebrew"}
+  ["mingw-w64-ucrt-x86_64-qt6-base"] {os = "win32" & os-distribution = "msys2"}
+]

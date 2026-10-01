@@ -6,12 +6,52 @@ let split_ws s =
   |> List.filter (fun s -> String.length s > 0)
 
 let is_macos () =
-  try
-    let ic = Unix.open_process_in "uname -s" in
-    let s = input_line ic in
-    close_in ic;
-    String.trim s = "Darwin"
-  with _ -> false
+  if Sys.os_type = "Win32" then false
+  else
+    try
+      let ic = Unix.open_process_in "uname -s" in
+      let s = input_line ic in
+      close_in ic;
+      String.trim s = "Darwin"
+    with _ -> false
+
+let find_standard_qt () =
+  if Sys.os_type = "Win32" then
+    let win_candidates = [
+      "C:\\msys64\\ucrt64";
+      "C:\\msys64\\mingw64";
+      "C:\\msys64\\clang64";
+    ] in
+    let exists d = Sys.file_exists (Filename.concat d "include") in
+    match List.find_opt exists win_candidates with
+    | Some d -> Some d
+    | None ->
+      if Sys.file_exists "C:\\Qt" then
+        try
+          let entries = Sys.readdir "C:\\Qt" |> Array.to_list in
+          let qt6_dirs = List.filter (fun e -> String.length e >= 2 && e.[0] = '6' && e.[1] = '.') entries in
+          let sub_toolchains = ["msvc2022_64"; "mingw_64"; "llvm-mingw_64"] in
+          let found = ref None in
+          List.iter (fun ver ->
+            List.iter (fun tc ->
+              let cand = Filename.concat (Filename.concat "C:\\Qt" ver) tc in
+              if !found = None && exists cand then found := Some cand
+            ) sub_toolchains
+          ) qt6_dirs;
+          !found
+        with _ -> None
+      else None
+  else if is_macos () then
+    let mac_candidates = [
+      "/opt/homebrew/opt/qt@6";
+      "/opt/homebrew/opt/qt";
+      "/usr/local/opt/qt@6";
+      "/usr/local/opt/qt";
+      "/opt/local/libexec/qt6";
+    ] in
+    List.find_opt (fun d -> Sys.file_exists (Filename.concat d "include")) mac_candidates
+  else
+    None
 
 let () =
   let cxxflags_path = ref "cxxflags.sexp" in
@@ -53,21 +93,27 @@ let () =
       | Some cflags, Some libs ->
         (default_cxxflags @ split_ws cflags, split_ws libs @ default_cpp_runtime)
       | _ ->
-        (* Check QTDIR or Qt6_DIR environment variable *)
+        (* Check QTDIR, Qt6_DIR, or standard platform locations *)
         let qtdir_opt =
           match Sys.getenv_opt "QTDIR" with
           | Some dir when String.length dir > 0 -> Some dir
-          | _ -> Sys.getenv_opt "Qt6_DIR"
+          | _ ->
+            (match Sys.getenv_opt "Qt6_DIR" with
+             | Some dir when String.length dir > 0 -> Some dir
+             | _ -> find_standard_qt ())
         in
         match qtdir_opt with
         | Some dir when Sys.file_exists (Filename.concat dir "include") ->
           let inc_dir = Filename.concat dir "include" in
           let lib_dir = Filename.concat dir "lib" in
+          let inc_sub = Filename.concat inc_dir "qt6" in
+          let inc_base = if Sys.file_exists inc_sub then inc_sub else inc_dir in
           let flags = [
             "-I" ^ inc_dir;
-            "-I" ^ Filename.concat inc_dir "QtCore";
-            "-I" ^ Filename.concat inc_dir "QtGui";
-            "-I" ^ Filename.concat inc_dir "QtWidgets";
+            "-I" ^ inc_base;
+            "-I" ^ Filename.concat inc_base "QtCore";
+            "-I" ^ Filename.concat inc_base "QtGui";
+            "-I" ^ Filename.concat inc_base "QtWidgets";
           ] in
           let libs =
             if is_msvc then

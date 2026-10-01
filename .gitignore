@@ -4,3 +4,9 @@ _build/
 *~
 *.swp
 *.sexp
+dist/
+hello_out*.txt
+hello_err*.txt
+plugin_debug.txt
+missing_dll.txt
+
