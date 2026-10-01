@@ -13,6 +13,8 @@ type selection_mode = Widgets.selection_mode
 type header_resize_mode = Widgets.header_resize_mode
 type dock_area = Widgets.dock_area
 type cursor_shape = Gui.Cursor.shape
+type drop_action = Gui.Drag.drop_action
+type clipboard_mode = Gui.Clipboard.mode
 
 module Object = Core.Object
 module Timer = Core.Timer
@@ -69,6 +71,10 @@ module ColorDialog = Widgets.ColorDialog
 module FontDialog = Widgets.FontDialog
 module InputDialog = Widgets.InputDialog
 module ProgressDialog = Widgets.ProgressDialog
+
+module Clipboard = Gui.Clipboard
+module MimeData = Gui.MimeData
+module Drag = Gui.Drag
 
 module Dsl = Dsl
 module State = Dsl.State

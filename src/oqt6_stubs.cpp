@@ -59,6 +59,14 @@
 #include <QPixmap>
 #include <QIcon>
 #include <QCursor>
+#include <QClipboard>
+#include <QDrag>
+#include <QMimeData>
+#include <QUrl>
+#include <QDropEvent>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDragLeaveEvent>
 #include <new>
 
 #include <cstring>
@@ -292,6 +300,10 @@ public:
     value* mouse_move_cb = nullptr;
     value* key_press_cb = nullptr;
     value* resize_cb = nullptr;
+    value* drag_enter_cb = nullptr;
+    value* drag_move_cb = nullptr;
+    value* drag_leave_cb = nullptr;
+    value* drop_cb = nullptr;
 
     ~OCamlCanvas() {
         CamlDomainLockGuard guard;
@@ -301,6 +313,10 @@ public:
         cleanup_root(&mouse_move_cb);
         cleanup_root(&key_press_cb);
         cleanup_root(&resize_cb);
+        cleanup_root(&drag_enter_cb);
+        cleanup_root(&drag_move_cb);
+        cleanup_root(&drag_leave_cb);
+        cleanup_root(&drop_cb);
     }
 
 private:
@@ -408,6 +424,66 @@ protected:
             caml_callbackN_exn(*resize_cb, 4, args);
         }
         QWidget::resizeEvent(event);
+    }
+
+    void dragEnterEvent(QDragEnterEvent* event) override {
+        if (drag_enter_cb) {
+            CamlDomainLockGuard guard;
+            value v_mime = alloc_qobject(const_cast<QMimeData*>(event->mimeData()), false);
+            value args[3] = {
+                Val_int((int)event->position().x()),
+                Val_int((int)event->position().y()),
+                v_mime
+            };
+            value res = caml_callbackN_exn(*drag_enter_cb, 3, args);
+            if (!Is_exception_result(res) && Bool_val(res)) {
+                event->acceptProposedAction();
+                return;
+            }
+        }
+        QWidget::dragEnterEvent(event);
+    }
+
+    void dragMoveEvent(QDragMoveEvent* event) override {
+        if (drag_move_cb) {
+            CamlDomainLockGuard guard;
+            value v_mime = alloc_qobject(const_cast<QMimeData*>(event->mimeData()), false);
+            value args[3] = {
+                Val_int((int)event->position().x()),
+                Val_int((int)event->position().y()),
+                v_mime
+            };
+            value res = caml_callbackN_exn(*drag_move_cb, 3, args);
+            if (!Is_exception_result(res) && Bool_val(res)) {
+                event->acceptProposedAction();
+                return;
+            }
+        }
+        QWidget::dragMoveEvent(event);
+    }
+
+    void dragLeaveEvent(QDragLeaveEvent* event) override {
+        if (drag_leave_cb) {
+            CamlDomainLockGuard guard;
+            caml_callback_exn(*drag_leave_cb, Val_unit);
+        }
+        QWidget::dragLeaveEvent(event);
+    }
+
+    void dropEvent(QDropEvent* event) override {
+        if (drop_cb) {
+            CamlDomainLockGuard guard;
+            value v_mime = alloc_qobject(const_cast<QMimeData*>(event->mimeData()), false);
+            value args[3] = {
+                Val_int((int)event->position().x()),
+                Val_int((int)event->position().y()),
+                v_mime
+            };
+            caml_callbackN_exn(*drop_cb, 3, args);
+            event->acceptProposedAction();
+        } else {
+            QWidget::dropEvent(event);
+        }
     }
 };
 
@@ -768,6 +844,19 @@ CAMLprim value caml_oqt6_qwidget_set_style_sheet(value v_w, value v_style) {
     QWidget* w = get_qobject<QWidget>(v_w);
     w->setStyleSheet(QString::fromUtf8(String_val(v_style)));
     CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qwidget_set_accept_drops(value v_w, value v_accept) {
+    CAMLparam2(v_w, v_accept);
+    QWidget* w = get_qobject<QWidget>(v_w);
+    w->setAcceptDrops(Bool_val(v_accept));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qwidget_accept_drops(value v_w) {
+    CAMLparam1(v_w);
+    QWidget* w = get_qobject<QWidget>(v_w);
+    CAMLreturn(Val_bool(w->acceptDrops()));
 }
 
 /* QPushButton primitives */
@@ -2372,6 +2461,54 @@ CAMLprim value caml_oqt6_qcanvas_on_resize(value v_c, value v_cb) {
     CAMLreturn(Val_unit);
 }
 
+CAMLprim value caml_oqt6_qcanvas_on_drag_enter(value v_c, value v_cb) {
+    CAMLparam2(v_c, v_cb);
+    OCamlCanvas* c = get_qobject<OCamlCanvas>(v_c);
+    c->setAcceptDrops(true);
+    if (!c->drag_enter_cb) {
+        c->drag_enter_cb = new value;
+        caml_register_global_root(c->drag_enter_cb);
+    }
+    *c->drag_enter_cb = v_cb;
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qcanvas_on_drag_move(value v_c, value v_cb) {
+    CAMLparam2(v_c, v_cb);
+    OCamlCanvas* c = get_qobject<OCamlCanvas>(v_c);
+    c->setAcceptDrops(true);
+    if (!c->drag_move_cb) {
+        c->drag_move_cb = new value;
+        caml_register_global_root(c->drag_move_cb);
+    }
+    *c->drag_move_cb = v_cb;
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qcanvas_on_drag_leave(value v_c, value v_cb) {
+    CAMLparam2(v_c, v_cb);
+    OCamlCanvas* c = get_qobject<OCamlCanvas>(v_c);
+    c->setAcceptDrops(true);
+    if (!c->drag_leave_cb) {
+        c->drag_leave_cb = new value;
+        caml_register_global_root(c->drag_leave_cb);
+    }
+    *c->drag_leave_cb = v_cb;
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qcanvas_on_drop(value v_c, value v_cb) {
+    CAMLparam2(v_c, v_cb);
+    OCamlCanvas* c = get_qobject<OCamlCanvas>(v_c);
+    c->setAcceptDrops(true);
+    if (!c->drop_cb) {
+        c->drop_cb = new value;
+        caml_register_global_root(c->drop_cb);
+    }
+    *c->drop_cb = v_cb;
+    CAMLreturn(Val_unit);
+}
+
 CAMLprim value caml_oqt6_qwidget_update(value v_w) {
     CAMLparam1(v_w);
     QWidget* w = get_qobject<QWidget>(v_w);
@@ -3698,6 +3835,350 @@ CAMLprim value caml_oqt6_qwidget_unset_cursor(value v_w) {
     CAMLparam1(v_w);
     QWidget* w = get_qobject<QWidget>(v_w);
     w->unsetCursor();
+    CAMLreturn(Val_unit);
+}
+
+/* QMimeData primitives */
+
+CAMLprim value caml_oqt6_qmimedata_create(value v_unit) {
+    CAMLparam1(v_unit);
+    QMimeData* m = new QMimeData();
+    CAMLreturn(alloc_qobject(m, true));
+}
+
+CAMLprim value caml_oqt6_qmimedata_has_text(value v_m) {
+    CAMLparam1(v_m);
+    QMimeData* m = get_qobject<QMimeData>(v_m);
+    CAMLreturn(Val_bool(m->hasText()));
+}
+
+CAMLprim value caml_oqt6_qmimedata_text(value v_m) {
+    CAMLparam1(v_m);
+    QMimeData* m = get_qobject<QMimeData>(v_m);
+    if (!m->hasText()) {
+        CAMLreturn(Val_int(0));
+    }
+    value some = caml_alloc(1, 0);
+    QByteArray utf8 = m->text().toUtf8();
+    Store_field(some, 0, caml_copy_string(utf8.constData()));
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_qmimedata_set_text(value v_m, value v_text) {
+    CAMLparam2(v_m, v_text);
+    QMimeData* m = get_qobject<QMimeData>(v_m);
+    m->setText(QString::fromUtf8(String_val(v_text)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qmimedata_has_urls(value v_m) {
+    CAMLparam1(v_m);
+    QMimeData* m = get_qobject<QMimeData>(v_m);
+    CAMLreturn(Val_bool(m->hasUrls()));
+}
+
+CAMLprim value caml_oqt6_qmimedata_urls(value v_m) {
+    CAMLparam1(v_m);
+    CAMLlocal2(head, cons);
+    QMimeData* m = get_qobject<QMimeData>(v_m);
+    QList<QUrl> urls = m->urls();
+    head = Val_int(0);
+    for (qsizetype i = urls.size() - 1; i >= 0; --i) {
+        cons = caml_alloc(2, 0);
+        QByteArray utf8 = urls[i].toString().toUtf8();
+        Store_field(cons, 0, caml_copy_string(utf8.constData()));
+        Store_field(cons, 1, head);
+        head = cons;
+    }
+    CAMLreturn(head);
+}
+
+CAMLprim value caml_oqt6_qmimedata_set_urls(value v_m, value v_urls) {
+    CAMLparam2(v_m, v_urls);
+    QMimeData* m = get_qobject<QMimeData>(v_m);
+    QList<QUrl> urls;
+    value cur = v_urls;
+    while (Is_block(cur)) {
+        value str_val = Field(cur, 0);
+        urls.append(QUrl(QString::fromUtf8(String_val(str_val))));
+        cur = Field(cur, 1);
+    }
+    m->setUrls(urls);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qmimedata_has_html(value v_m) {
+    CAMLparam1(v_m);
+    QMimeData* m = get_qobject<QMimeData>(v_m);
+    CAMLreturn(Val_bool(m->hasHtml()));
+}
+
+CAMLprim value caml_oqt6_qmimedata_html(value v_m) {
+    CAMLparam1(v_m);
+    QMimeData* m = get_qobject<QMimeData>(v_m);
+    if (!m->hasHtml()) {
+        CAMLreturn(Val_int(0));
+    }
+    value some = caml_alloc(1, 0);
+    QByteArray utf8 = m->html().toUtf8();
+    Store_field(some, 0, caml_copy_string(utf8.constData()));
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_qmimedata_set_html(value v_m, value v_html) {
+    CAMLparam2(v_m, v_html);
+    QMimeData* m = get_qobject<QMimeData>(v_m);
+    m->setHtml(QString::fromUtf8(String_val(v_html)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qmimedata_formats(value v_m) {
+    CAMLparam1(v_m);
+    CAMLlocal2(head, cons);
+    QMimeData* m = get_qobject<QMimeData>(v_m);
+    QStringList fmts = m->formats();
+    head = Val_int(0);
+    for (qsizetype i = fmts.size() - 1; i >= 0; --i) {
+        cons = caml_alloc(2, 0);
+        QByteArray utf8 = fmts[i].toUtf8();
+        Store_field(cons, 0, caml_copy_string(utf8.constData()));
+        Store_field(cons, 1, head);
+        head = cons;
+    }
+    CAMLreturn(head);
+}
+
+CAMLprim value caml_oqt6_qmimedata_data(value v_m, value v_fmt) {
+    CAMLparam2(v_m, v_fmt);
+    QMimeData* m = get_qobject<QMimeData>(v_m);
+    QString fmt = QString::fromUtf8(String_val(v_fmt));
+    if (!m->hasFormat(fmt)) {
+        CAMLreturn(Val_int(0));
+    }
+    QByteArray ba = m->data(fmt);
+    value some = caml_alloc(1, 0);
+    value str = caml_alloc_initialized_string((mlsize_t)ba.size(), ba.constData());
+    Store_field(some, 0, str);
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_qmimedata_set_data(value v_m, value v_fmt, value v_data) {
+    CAMLparam3(v_m, v_fmt, v_data);
+    QMimeData* m = get_qobject<QMimeData>(v_m);
+    QString fmt = QString::fromUtf8(String_val(v_fmt));
+    QByteArray ba(String_val(v_data), (int)caml_string_length(v_data));
+    m->setData(fmt, ba);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qmimedata_clear(value v_m) {
+    CAMLparam1(v_m);
+    QMimeData* m = get_qobject<QMimeData>(v_m);
+    m->clear();
+    CAMLreturn(Val_unit);
+}
+
+/* QDrag primitives */
+
+CAMLprim value caml_oqt6_qdrag_create(value v_parent) {
+    CAMLparam1(v_parent);
+    QWidget* parent = get_qobject<QWidget>(v_parent);
+    QDrag* drag = new QDrag(parent);
+    CAMLreturn(alloc_qobject(drag, true));
+}
+
+CAMLprim value caml_oqt6_qdrag_set_mime_data(value v_drag, value v_mime) {
+    CAMLparam2(v_drag, v_mime);
+    QDrag* drag = get_qobject<QDrag>(v_drag);
+    QMimeData* mime = get_qobject<QMimeData>(v_mime);
+    mark_parented(v_mime);
+    drag->setMimeData(mime);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qdrag_mime_data(value v_drag) {
+    CAMLparam1(v_drag);
+    QDrag* drag = get_qobject<QDrag>(v_drag);
+    QMimeData* mime = drag->mimeData();
+    if (!mime) {
+        CAMLreturn(Val_int(0));
+    }
+    value some = caml_alloc(1, 0);
+    Store_field(some, 0, alloc_qobject(mime, false));
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_qdrag_set_pixmap(value v_drag, value v_pix) {
+    CAMLparam2(v_drag, v_pix);
+    QDrag* drag = get_qobject<QDrag>(v_drag);
+    drag->setPixmap(Pixmap_val(v_pix));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qdrag_set_hot_spot(value v_drag, value v_x, value v_y) {
+    CAMLparam3(v_drag, v_x, v_y);
+    QDrag* drag = get_qobject<QDrag>(v_drag);
+    drag->setHotSpot(QPoint(Int_val(v_x), Int_val(v_y)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qdrag_exec(value v_drag, value v_actions) {
+    CAMLparam2(v_drag, v_actions);
+    QDrag* drag = get_qobject<QDrag>(v_drag);
+    int act_int = Int_val(v_actions);
+    Qt::DropActions actions = Qt::CopyAction;
+    if (act_int == 1) actions = Qt::MoveAction;
+    else if (act_int == 2) actions = Qt::LinkAction;
+    else if (act_int == 3) actions = Qt::CopyAction | Qt::MoveAction;
+
+    thread_domain_lock_depth--;
+    caml_release_runtime_system();
+    Qt::DropAction res = drag->exec(actions);
+    caml_acquire_runtime_system();
+    thread_domain_lock_depth++;
+
+    int out = 0; // Ignore
+    if (res == Qt::CopyAction) out = 1;
+    else if (res == Qt::MoveAction) out = 2;
+    else if (res == Qt::LinkAction) out = 3;
+    CAMLreturn(Val_int(out));
+}
+
+/* QClipboard primitives */
+
+CAMLprim value caml_oqt6_clipboard_text(value v_mode) {
+    CAMLparam1(v_mode);
+    QClipboard* cb = QGuiApplication::clipboard();
+    if (!cb) {
+        CAMLreturn(Val_int(0));
+    }
+    int mode_int = Int_val(v_mode);
+    QClipboard::Mode mode = QClipboard::Clipboard;
+    if (mode_int == 1) mode = QClipboard::Selection;
+    else if (mode_int == 2) mode = QClipboard::FindBuffer;
+
+    const QMimeData* md = cb->mimeData(mode);
+    if (!md || !md->hasText()) {
+        CAMLreturn(Val_int(0));
+    }
+    QString s = cb->text(mode);
+    value some = caml_alloc(1, 0);
+    QByteArray utf8 = s.toUtf8();
+    Store_field(some, 0, caml_copy_string(utf8.constData()));
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_clipboard_set_text(value v_text, value v_mode) {
+    CAMLparam2(v_text, v_mode);
+    QClipboard* cb = QGuiApplication::clipboard();
+    if (cb) {
+        int mode_int = Int_val(v_mode);
+        QClipboard::Mode mode = QClipboard::Clipboard;
+        if (mode_int == 1) mode = QClipboard::Selection;
+        else if (mode_int == 2) mode = QClipboard::FindBuffer;
+        cb->setText(QString::fromUtf8(String_val(v_text)), mode);
+    }
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_clipboard_pixmap(value v_mode) {
+    CAMLparam1(v_mode);
+    QClipboard* cb = QGuiApplication::clipboard();
+    if (!cb) {
+        CAMLreturn(Val_int(0));
+    }
+    int mode_int = Int_val(v_mode);
+    QClipboard::Mode mode = QClipboard::Clipboard;
+    if (mode_int == 1) mode = QClipboard::Selection;
+    else if (mode_int == 2) mode = QClipboard::FindBuffer;
+
+    QPixmap p = cb->pixmap(mode);
+    if (p.isNull()) {
+        CAMLreturn(Val_int(0));
+    }
+    value some = caml_alloc(1, 0);
+    Store_field(some, 0, alloc_pixmap(p));
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_clipboard_set_pixmap(value v_pix, value v_mode) {
+    CAMLparam2(v_pix, v_mode);
+    QClipboard* cb = QGuiApplication::clipboard();
+    if (cb) {
+        int mode_int = Int_val(v_mode);
+        QClipboard::Mode mode = QClipboard::Clipboard;
+        if (mode_int == 1) mode = QClipboard::Selection;
+        else if (mode_int == 2) mode = QClipboard::FindBuffer;
+        cb->setPixmap(Pixmap_val(v_pix), mode);
+    }
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_clipboard_mime_data(value v_mode) {
+    CAMLparam1(v_mode);
+    QClipboard* cb = QGuiApplication::clipboard();
+    if (!cb) {
+        CAMLreturn(Val_int(0));
+    }
+    int mode_int = Int_val(v_mode);
+    QClipboard::Mode mode = QClipboard::Clipboard;
+    if (mode_int == 1) mode = QClipboard::Selection;
+    else if (mode_int == 2) mode = QClipboard::FindBuffer;
+
+    const QMimeData* m = cb->mimeData(mode);
+    if (!m) {
+        CAMLreturn(Val_int(0));
+    }
+    value some = caml_alloc(1, 0);
+    Store_field(some, 0, alloc_qobject(const_cast<QMimeData*>(m), false));
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_clipboard_set_mime_data(value v_mime, value v_mode) {
+    CAMLparam2(v_mime, v_mode);
+    QClipboard* cb = QGuiApplication::clipboard();
+    if (cb) {
+        int mode_int = Int_val(v_mode);
+        QClipboard::Mode mode = QClipboard::Clipboard;
+        if (mode_int == 1) mode = QClipboard::Selection;
+        else if (mode_int == 2) mode = QClipboard::FindBuffer;
+
+        QMimeData* m = get_qobject<QMimeData>(v_mime);
+        mark_parented(v_mime);
+        cb->setMimeData(m, mode);
+    }
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_clipboard_clear(value v_mode) {
+    CAMLparam1(v_mode);
+    QClipboard* cb = QGuiApplication::clipboard();
+    if (cb) {
+        int mode_int = Int_val(v_mode);
+        QClipboard::Mode mode = QClipboard::Clipboard;
+        if (mode_int == 1) mode = QClipboard::Selection;
+        else if (mode_int == 2) mode = QClipboard::FindBuffer;
+        cb->clear(mode);
+    }
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_clipboard_connect_changed(value v_cb) {
+    CAMLparam1(v_cb);
+    QClipboard* cb = QGuiApplication::clipboard();
+    if (!cb) {
+        caml_failwith("Oqt6: QClipboard is not available (QApplication not initialized)");
+    }
+    value* root = new value;
+    *root = v_cb;
+    caml_register_global_root(root);
+
+    QObject::connect(cb, &QClipboard::dataChanged, [root]() {
+        CamlDomainLockGuard guard;
+        caml_callback_exn(*root, Val_unit);
+    });
+    connect_root_cleanup(cb, root);
+
     CAMLreturn(Val_unit);
 }
 

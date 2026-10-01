@@ -22,6 +22,8 @@ type selection_mode = Widgets.selection_mode
 type header_resize_mode = Widgets.header_resize_mode
 type dock_area = Widgets.dock_area
 type cursor_shape = Gui.Cursor.shape
+type drop_action = Gui.Drag.drop_action
+type clipboard_mode = Gui.Clipboard.mode
 
 (** {1 Core & Concurrency} *)
 
@@ -184,6 +186,17 @@ module InputDialog = Widgets.InputDialog
 
 (** Responsive operation progress dialog with abort support. *)
 module ProgressDialog = Widgets.ProgressDialog
+
+(** {1 Desktop Integration & Data Exchange} *)
+
+(** System clipboard for copying and pasting text, pixmaps, and arbitrary mime data. *)
+module Clipboard = Gui.Clipboard
+
+(** Multipurpose Internet Mail Extensions (MIME) container for drag-and-drop and clipboard. *)
+module MimeData = Gui.MimeData
+
+(** Drag-and-drop operation initiator with custom pixmaps and hot-spots. *)
+module Drag = Gui.Drag
 
 (** {1 Declarative & Reactive UI Framework} *)
 

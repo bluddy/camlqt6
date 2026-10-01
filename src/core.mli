@@ -6,6 +6,8 @@ external cast : 'a t -> 'b t = "%identity"
 
 type qobject = [ `QObject ]
 type qtimer = [ qobject | `QTimer ]
+type qmimedata = [ qobject | `QMimeData ]
+type qdrag = [ qobject | `QDrag ]
 
 module Object : sig
   val delete : [> `QObject ] t -> unit

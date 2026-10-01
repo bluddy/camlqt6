@@ -83,6 +83,8 @@ module Widget : sig
   val set_style_sheet : [> `QWidget ] Core.t -> string -> unit
   val update : [> `QWidget ] Core.t -> unit
   val set_mouse_tracking : [> `QWidget ] Core.t -> bool -> unit
+  val set_accept_drops : [> `QWidget ] Core.t -> bool -> unit
+  val accept_drops : [> `QWidget ] Core.t -> bool
   val as_widget : [> `QWidget ] Core.t -> qwidget Core.t
 end
 
@@ -202,6 +204,10 @@ module Canvas : sig
   val on_resize : [> `QCanvas ] Core.t -> (resize_event -> unit) -> unit
   val update : [> `QCanvas ] Core.t -> unit
   val set_mouse_tracking : [> `QCanvas ] Core.t -> bool -> unit
+  val on_drag_enter : [> `QCanvas ] Core.t -> (x:int -> y:int -> Gui.MimeData.t -> bool) -> unit
+  val on_drag_move : [> `QCanvas ] Core.t -> (x:int -> y:int -> Gui.MimeData.t -> bool) -> unit
+  val on_drag_leave : [> `QCanvas ] Core.t -> (unit -> unit) -> unit
+  val on_drop : [> `QCanvas ] Core.t -> (x:int -> y:int -> Gui.MimeData.t -> unit) -> unit
 end
 
 module MainWindow : sig

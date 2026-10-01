@@ -4,6 +4,8 @@ external cast : 'a t -> 'b t = "%identity"
 
 type qobject = [ `QObject ]
 type qtimer = [ qobject | `QTimer ]
+type qmimedata = [ qobject | `QMimeData ]
+type qdrag = [ qobject | `QDrag ]
 
 external qobject_delete : 'a t -> unit = "caml_oqt6_qobject_delete"
 external qobject_is_valid : 'a t -> bool = "caml_oqt6_qobject_is_valid"

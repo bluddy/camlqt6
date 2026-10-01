@@ -192,3 +192,104 @@ module Cursor = struct
 
   let set_cursor w shape = set_cursor_raw w (int_of_shape shape)
 end
+
+(* QMimeData *)
+external qmimedata_create : unit -> Core.qmimedata Core.t = "caml_oqt6_qmimedata_create"
+external qmimedata_has_text : 'a Core.t -> bool = "caml_oqt6_qmimedata_has_text"
+external qmimedata_text : 'a Core.t -> string option = "caml_oqt6_qmimedata_text"
+external qmimedata_set_text : 'a Core.t -> string -> unit = "caml_oqt6_qmimedata_set_text"
+external qmimedata_has_urls : 'a Core.t -> bool = "caml_oqt6_qmimedata_has_urls"
+external qmimedata_urls : 'a Core.t -> string list = "caml_oqt6_qmimedata_urls"
+external qmimedata_set_urls : 'a Core.t -> string list -> unit = "caml_oqt6_qmimedata_set_urls"
+external qmimedata_has_html : 'a Core.t -> bool = "caml_oqt6_qmimedata_has_html"
+external qmimedata_html : 'a Core.t -> string option = "caml_oqt6_qmimedata_html"
+external qmimedata_set_html : 'a Core.t -> string -> unit = "caml_oqt6_qmimedata_set_html"
+external qmimedata_formats : 'a Core.t -> string list = "caml_oqt6_qmimedata_formats"
+external qmimedata_data : 'a Core.t -> string -> string option = "caml_oqt6_qmimedata_data"
+external qmimedata_set_data : 'a Core.t -> string -> string -> unit = "caml_oqt6_qmimedata_set_data"
+external qmimedata_clear : 'a Core.t -> unit = "caml_oqt6_qmimedata_clear"
+
+module MimeData = struct
+  type qmimedata = Core.qmimedata
+  type t = qmimedata Core.t
+
+  let create () = qmimedata_create ()
+  let has_text = qmimedata_has_text
+  let text = qmimedata_text
+  let set_text = qmimedata_set_text
+  let has_urls = qmimedata_has_urls
+  let urls = qmimedata_urls
+  let set_urls = qmimedata_set_urls
+  let has_html = qmimedata_has_html
+  let html = qmimedata_html
+  let set_html = qmimedata_set_html
+  let formats = qmimedata_formats
+  let data = qmimedata_data
+  let set_data = qmimedata_set_data
+  let clear = qmimedata_clear
+end
+
+(* QDrag *)
+external qdrag_create : 'a Core.t -> Core.qdrag Core.t = "caml_oqt6_qdrag_create"
+external qdrag_set_mime_data : 'a Core.t -> 'b Core.t -> unit = "caml_oqt6_qdrag_set_mime_data"
+external qdrag_mime_data : 'a Core.t -> Core.qmimedata Core.t option = "caml_oqt6_qdrag_mime_data"
+external qdrag_set_pixmap : 'a Core.t -> Pixmap.t -> unit = "caml_oqt6_qdrag_set_pixmap"
+external qdrag_set_hot_spot : 'a Core.t -> int -> int -> unit = "caml_oqt6_qdrag_set_hot_spot"
+external qdrag_exec_raw : 'a Core.t -> int -> int = "caml_oqt6_qdrag_exec"
+
+module Drag = struct
+  type qdrag = Core.qdrag
+  type t = qdrag Core.t
+  type drop_action = [ `Ignore | `Copy | `Move | `Link ]
+  type actions_supported = [ `Copy | `Move | `Link | `Copy_or_move ]
+
+  let int_of_actions = function
+    | `Copy -> 0
+    | `Move -> 1
+    | `Link -> 2
+    | `Copy_or_move -> 3
+
+  let action_of_int = function
+    | 1 -> `Copy
+    | 2 -> `Move
+    | 3 -> `Link
+    | _ -> `Ignore
+
+  let create parent = qdrag_create parent
+  let set_mime_data = qdrag_set_mime_data
+  let mime_data = qdrag_mime_data
+  let set_pixmap = qdrag_set_pixmap
+  let set_hot_spot drag ~x ~y = qdrag_set_hot_spot drag x y
+  let exec ?(actions = `Copy_or_move) drag =
+    action_of_int (qdrag_exec_raw drag (int_of_actions actions))
+end
+
+(* QClipboard *)
+type clipboard_mode = [ `Clipboard | `Selection | `Find_buffer ]
+
+let int_of_clipboard_mode = function
+  | `Clipboard -> 0
+  | `Selection -> 1
+  | `Find_buffer -> 2
+
+external clipboard_text_raw : int -> string option = "caml_oqt6_clipboard_text"
+external clipboard_set_text_raw : string -> int -> unit = "caml_oqt6_clipboard_set_text"
+external clipboard_pixmap_raw : int -> Pixmap.t option = "caml_oqt6_clipboard_pixmap"
+external clipboard_set_pixmap_raw : Pixmap.t -> int -> unit = "caml_oqt6_clipboard_set_pixmap"
+external clipboard_mime_data_raw : int -> Core.qmimedata Core.t option = "caml_oqt6_clipboard_mime_data"
+external clipboard_set_mime_data_raw : 'a Core.t -> int -> unit = "caml_oqt6_clipboard_set_mime_data"
+external clipboard_clear_raw : int -> unit = "caml_oqt6_clipboard_clear"
+external clipboard_connect_changed : (unit -> unit) -> unit = "caml_oqt6_clipboard_connect_changed"
+
+module Clipboard = struct
+  type mode = clipboard_mode
+
+  let text ?(mode = `Clipboard) () = clipboard_text_raw (int_of_clipboard_mode mode)
+  let set_text ?(mode = `Clipboard) s = clipboard_set_text_raw s (int_of_clipboard_mode mode)
+  let pixmap ?(mode = `Clipboard) () = clipboard_pixmap_raw (int_of_clipboard_mode mode)
+  let set_pixmap ?(mode = `Clipboard) p = clipboard_set_pixmap_raw p (int_of_clipboard_mode mode)
+  let mime_data ?(mode = `Clipboard) () = clipboard_mime_data_raw (int_of_clipboard_mode mode)
+  let set_mime_data ?(mode = `Clipboard) m = clipboard_set_mime_data_raw m (int_of_clipboard_mode mode)
+  let clear ?(mode = `Clipboard) () = clipboard_clear_raw (int_of_clipboard_mode mode)
+  let on_changed = clipboard_connect_changed
+end

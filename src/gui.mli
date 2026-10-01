@@ -124,3 +124,50 @@ module Cursor : sig
   val set_cursor : [> `QWidget ] Core.t -> shape -> unit
   val unset_cursor : [> `QWidget ] Core.t -> unit
 end
+
+module MimeData : sig
+  type qmimedata = Core.qmimedata
+  type t = qmimedata Core.t
+
+  val create : unit -> t
+  val text : [> `QMimeData ] Core.t -> string option
+  val set_text : [> `QMimeData ] Core.t -> string -> unit
+  val has_text : [> `QMimeData ] Core.t -> bool
+  val urls : [> `QMimeData ] Core.t -> string list
+  val set_urls : [> `QMimeData ] Core.t -> string list -> unit
+  val has_urls : [> `QMimeData ] Core.t -> bool
+  val html : [> `QMimeData ] Core.t -> string option
+  val set_html : [> `QMimeData ] Core.t -> string -> unit
+  val has_html : [> `QMimeData ] Core.t -> bool
+  val formats : [> `QMimeData ] Core.t -> string list
+  val data : [> `QMimeData ] Core.t -> string -> string option
+  val set_data : [> `QMimeData ] Core.t -> string -> string -> unit
+  val clear : [> `QMimeData ] Core.t -> unit
+end
+
+module Drag : sig
+  type qdrag = Core.qdrag
+  type t = qdrag Core.t
+  type drop_action = [ `Ignore | `Copy | `Move | `Link ]
+  type actions_supported = [ `Copy | `Move | `Link | `Copy_or_move ]
+
+  val create : [> `QWidget ] Core.t -> t
+  val set_mime_data : [> `QDrag ] Core.t -> [> `QMimeData ] Core.t -> unit
+  val mime_data : [> `QDrag ] Core.t -> MimeData.t option
+  val set_pixmap : [> `QDrag ] Core.t -> Pixmap.t -> unit
+  val set_hot_spot : [> `QDrag ] Core.t -> x:int -> y:int -> unit
+  val exec : ?actions:actions_supported -> [> `QDrag ] Core.t -> drop_action
+end
+
+module Clipboard : sig
+  type mode = [ `Clipboard | `Selection | `Find_buffer ]
+
+  val text : ?mode:mode -> unit -> string option
+  val set_text : ?mode:mode -> string -> unit
+  val pixmap : ?mode:mode -> unit -> Pixmap.t option
+  val set_pixmap : ?mode:mode -> Pixmap.t -> unit
+  val mime_data : ?mode:mode -> unit -> MimeData.t option
+  val set_mime_data : ?mode:mode -> [> `QMimeData ] Core.t -> unit
+  val clear : ?mode:mode -> unit -> unit
+  val on_changed : (unit -> unit) -> unit
+end
