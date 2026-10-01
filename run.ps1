@@ -7,6 +7,14 @@ if ($Target -like "example/*") {
     $Target = "examples/" + $Target.Substring(8)
 }
 
+# If short name like 'hello' or 'workbench_demo', resolve to 'examples/<name>.exe'
+if ($Target -notlike "*/*" -and $Target -notlike "*\*") {
+    $Target = "examples/$Target"
+}
+if (-not $Target.EndsWith(".exe")) {
+    $Target = "$Target.exe"
+}
+
 # Auto-detect QTDIR if not set
 if (-not $env:QTDIR) {
     if (Test-Path "C:\msys64\ucrt64\bin") {

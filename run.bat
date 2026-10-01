@@ -10,6 +10,11 @@ if exist "%LOCALAPPDATA%\opam\default\bin" set PATH=%LOCALAPPDATA%\opam\default\
 set TARGET=%~1
 if "%TARGET%"=="" set TARGET=examples/hello.exe
 if "%TARGET:~0,8%"=="example/" set TARGET=examples/%TARGET:~8%
+if "%TARGET:~0,9%"=="examples/" goto run
 
+set TARGET=examples/%TARGET%
+if not "%TARGET:~-4%"==".exe" set TARGET=%TARGET%.exe
+
+:run
 echo Running: dune exec %TARGET%
 dune exec %TARGET%

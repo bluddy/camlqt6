@@ -589,6 +589,17 @@ static int global_argc = 0;
 static std::vector<char*> global_argv;
 static QApplication* global_app = nullptr;
 
+static void cleanup_qt_at_exit() {
+    if (global_app) {
+        const auto topLevelWidgets = QApplication::topLevelWidgets();
+        for (QWidget* w : topLevelWidgets) {
+            delete w;
+        }
+        delete global_app;
+        global_app = nullptr;
+    }
+}
+
 CAMLprim value caml_oqt6_qapplication_create(value v_args) {
     CAMLparam1(v_args);
     if (global_app != nullptr) {
@@ -612,6 +623,7 @@ CAMLprim value caml_oqt6_qapplication_create(value v_args) {
     }
 
     global_app = new QApplication(global_argc, global_argv.data());
+    std::atexit(cleanup_qt_at_exit);
     CAMLreturn(alloc_qobject(global_app, false));
 }
 
