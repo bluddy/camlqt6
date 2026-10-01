@@ -1,8 +1,8 @@
-(** OQt6 Phase 5 Demo: Declarative & Reactive UI
+(** CamlQt6 Phase 5 Demo: Declarative & Reactive UI
     Showcases functional reactive state bindings, declarative UI trees,
     and automatic synchronization with zero boilerplate. *)
 
-open Oqt6
+open Camlqt6
 
 let () =
   (* --- 1. Reactive State Definitions --- *)
@@ -49,11 +49,11 @@ let () =
 
   (* --- 2. Declarative UI Component Tree --- *)
   let ui =
-    Dsl.window ~title:"OQt6 Declarative Reactive Todo & Dashboard" ~width:720 ~height:600 ~status_bar:status_msg (
+    Dsl.window ~title:"CamlQt6 Declarative Reactive Todo & Dashboard" ~width:720 ~height:600 ~status_bar:status_msg (
       Dsl.vbox ~spacing:12 ~margin:16 [
         (* Header banner *)
         Dsl.label ~style:"font-size: 16pt; font-weight: bold; color: #2c3e50;"
-          "OQt6 Declarative Reactive Workbench";
+          "CamlQt6 Declarative Reactive Workbench";
 
         Dsl.label_s ~style:"font-size: 11pt; color: #7f8c8d;"
           task_count_text;

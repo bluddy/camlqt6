@@ -6,12 +6,12 @@
   (run %{discover} -cxxflags cxxflags.sexp -clibs clibs.sexp)))
 
 (library
- (name oqt6)
- (public_name oqt6)
- (modules core gui widgets dsl oqt6)
+ (name camlqt6)
+ (public_name camlqt6)
+ (modules core gui widgets dsl camlqt6)
  (foreign_stubs
   (language cxx)
-  (names oqt6_stubs)
+  (names camlqt6_stubs)
   (flags
    (:include cxxflags.sexp)))
  (c_library_flags

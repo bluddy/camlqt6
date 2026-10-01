@@ -1,15 +1,15 @@
-open Oqt6
+open Camlqt6
 
 let () =
   let app = App.create () in
 
   let main_win = MainWindow.create () in
-  Widget.set_window_title main_win "OQt6 Kitchen Sink - Desktop Controls Showcase";
+  Widget.set_window_title main_win "CamlQt6 Kitchen Sink - Desktop Controls Showcase";
   Widget.resize main_win ~width:720 ~height:520;
 
   (* Status Bar *)
   let sb = MainWindow.status_bar main_win in
-  StatusBar.show_message sb "Welcome to OQt6! Ready." ;
+  StatusBar.show_message sb "Welcome to CamlQt6! Ready." ;
 
   (* Menu Bar *)
   let mb = MainWindow.menu_bar main_win in
@@ -31,12 +31,12 @@ let () =
 
   (* Help Menu *)
   let help_menu = MenuBar.add_menu mb "&Help" in
-  let action_about = Menu.add_action_text help_menu "&About OQt6" in
+  let action_about = Menu.add_action_text help_menu "&About CamlQt6" in
   Action.on_triggered action_about (fun _ ->
     MessageBox.information
       ~parent:main_win
-      ~title:"About OQt6"
-      ~text:"OQt6: Pure, Type-Safe OCaml 5 bindings for Qt 6.\n\nRunning natively on WSL2 / Linux / Windows / macOS."
+      ~title:"About CamlQt6"
+      ~text:"CamlQt6: Pure, Type-Safe OCaml 5 bindings for Qt 6.\n\nRunning natively on WSL2 / Linux / Windows / macOS."
       ()
   );
 
@@ -124,7 +124,7 @@ let () =
     Widget.set_window_title dlg "Custom Modal Dialog";
     Widget.resize dlg ~width:280 ~height:140;
     let d_layout = Layout.VBox.create ~parent:dlg () in
-    let d_lbl = Label.create ~text:"This is a modal dialog running inside OQt6!" () in
+    let d_lbl = Label.create ~text:"This is a modal dialog running inside CamlQt6!" () in
     Layout.add_widget d_layout d_lbl;
     let ok_btn = Button.create ~text:"Close Dialog" () in
     Button.on_clicked ok_btn (fun () -> Dialog.accept dlg);
@@ -145,7 +145,7 @@ let () =
 
   let text_edit = TextEdit.create () in
   TextEdit.set_plain_text text_edit
-    "Welcome to the OQt6 showcase!\n\n\
+    "Welcome to the CamlQt6 showcase!\n\n\
      • Built using OCaml 5 with direct C++20 FFI\n\
      • Safe memory management via QPointer\n\
      • Re-entrant multicore domain lock safety\n\

@@ -1,11 +1,11 @@
-# OQt6: Cross-Platform Qt 6 Bindings for OCaml
+# CamlQt6: Cross-Platform Qt 6 Bindings for OCaml
 
 [![OCaml 5.x](https://img.shields.io/badge/OCaml-5.x-orange.svg)](https://ocaml.org/)
 [![Qt 6.x](https://img.shields.io/badge/Qt-6.x-green.svg)](https://www.qt.io/)
 [![Build & Test](https://img.shields.io/badge/Tests-Passing%20(39%2F39)-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-`oqt6` provides safe, modern, and idiomatic OCaml bindings for the **Qt 6** application framework. Designed from the ground up for **OCaml 5 Multicore**, `oqt6` supports both classic imperative Qt widget construction and modern functional reactive programming (FRP) with declarative UI trees.
+`CamlQt6` provides safe, modern, and idiomatic OCaml bindings for the **Qt 6** application framework. Designed from the ground up for **OCaml 5 Multicore**, `CamlQt6` supports both classic imperative Qt widget construction and modern functional reactive programming (FRP) with declarative UI trees.
 
 ---
 
@@ -24,14 +24,14 @@
 
 ## Architecture at a Glance
 
-For full architectural details, see [docs/ARCHITECTURE.md](file:///home/yotam/source/ocaml/oqt6/docs/ARCHITECTURE.md).
-For a step-by-step tutorial, see [docs/TUTORIAL.md](file:///home/yotam/source/ocaml/oqt6/docs/TUTORIAL.md).
+For full architectural details, see [docs/ARCHITECTURE.md](file:///home/yotam/source/ocaml/CamlQt6/docs/ARCHITECTURE.md).
+For a step-by-step tutorial, see [docs/TUTORIAL.md](file:///home/yotam/source/ocaml/CamlQt6/docs/TUTORIAL.md).
 
 ---
 
 ## Project Scope & Design Philosophy
 
-`oqt6` is intentionally scoped to provide a premier, native **desktop GUI programming** experience for OCaml.
+`CamlQt6` is intentionally scoped to provide a premier, native **desktop GUI programming** experience for OCaml.
 
 ### What is In Scope: Native Desktop GUI & Functional Reactivity
 - **Complete Native GUI Workflows:** Core windows (`QMainWindow`), layouts (`VBox`, `HBox`, `Grid`), controls (`Button`, `LineEdit`, `TextEdit`, `ComboBox`, `Slider`, `SpinBox`, etc.), and complex containers (`TabWidget`, `StackedWidget`, `Splitter`, `ScrollArea`, `GroupBox`).
@@ -44,12 +44,12 @@ For a step-by-step tutorial, see [docs/TUTORIAL.md](file:///home/yotam/source/oc
 ### What is Intentionally Out of Scope (and Why)
 - **`QtNetwork`:** Network I/O is far better served by native OCaml asynchronous libraries (such as `eio`, `cohttp`, `piaf`, or `curl`) without crossing the C++ FFI boundary.
 - **`QtSql`:** Relational database access in OCaml is idiomatic, type-safe, and mature using native libraries like `caqti` or `pgx`.
-- **`QtSvg`:** Vector graphics rendering in OQt6 is natively powered by `QPainter`. Specialized SVG DOM manipulation is outside the core GUI widget scope.
-- **`QML` / `QtQuick`:** QML has its own runtime engine and is already wrapped for OCaml by `lablqml`. OQt6 focuses on native desktop widgets and its own lightweight OCaml functional reactive DSL.
+- **`QtSvg`:** Vector graphics rendering in CamlQt6 is natively powered by `QPainter`. Specialized SVG DOM manipulation is outside the core GUI widget scope.
+- **`QML` / `QtQuick`:** QML has its own runtime engine and is already wrapped for OCaml by `lablqml`. CamlQt6 focuses on native desktop widgets and its own lightweight OCaml functional reactive DSL.
 - **Peripheral Hardware Stacks (`QtBluetooth`, `QtSensors`, `QtSerialPort`):** These introduce heavy platform-dependent dependencies rarely needed for desktop user interfaces.
 
 ### Agent-Driven Engineering vs. Automated Code Generation
-Rather than running an automated Clang AST generator that spits out thousands of mechanical, unidiomatic C-style wrappers (flat argument lists, integer enum codes, manual pointer casting), `oqt6` was built using **agent-driven engineering**:
+Rather than running an automated Clang AST generator that spits out thousands of mechanical, unidiomatic C-style wrappers (flat argument lists, integer enum codes, manual pointer casting), `CamlQt6` was built using **agent-driven engineering**:
 1. **Zero-Overhead Compile-Time Subtyping:** Uses phantom polymorphic variants (`[> `QWidget ] Core.t`), allowing any widget subclass to be used in layouts or parent containers without manual runtime casts.
 2. **Polymorphic Variants for Enums:** Typed, expressive variants (e.g. `` `Left_button``, `` `Solid_line``, `` `Stretch``) replace raw C++ enum integers.
 3. **No Generator Dependencies:** The repository contains clean, human-auditable C++ stubs and OCaml source. It builds in seconds with standard `dune build` and zero external generator toolchains.
@@ -84,7 +84,7 @@ opam exec -- dune runtest
 ### Declarative & Reactive Style (`Dsl`)
 
 ```ocaml
-open Oqt6
+open CamlQt6
 
 let () =
   let count = State.create 0 in
@@ -109,16 +109,16 @@ let () =
 ### Direct Imperative Style
 
 ```ocaml
-open Oqt6
+open CamlQt6
 
 let () =
   let app = App.create () in
   let win = Widget.create () in
-  Widget.set_window_title win "Imperative OQt6";
+  Widget.set_window_title win "Imperative CamlQt6";
   Widget.resize win ~width:350 ~height:200;
 
   let layout = Layout.VBox.create ~parent:win () in
-  let label = Label.create ~text:"Welcome to OQt6!" () in
+  let label = Label.create ~text:"Welcome to CamlQt6!" () in
   let btn = Button.create ~text:"Click Me" () in
 
   Layout.add_widget layout label;
@@ -182,10 +182,10 @@ opam exec -- dune exec examples/hello.exe
 
 ## Documentation Links
 
-- [Architecture & Design Details](file:///home/yotam/source/ocaml/oqt6/docs/ARCHITECTURE.md)
-- [Cookbook & Tutorial Guide](file:///home/yotam/source/ocaml/oqt6/docs/TUTORIAL.md)
-- [Windows Testing & Setup Guide](file:///home/yotam/source/ocaml/oqt6/docs/WINDOWS_TESTING.md)
-- [Project Roadmap & Completed Milestones](file:///home/yotam/source/ocaml/oqt6/ROADMAP.md)
+- [Architecture & Design Details](file:///home/yotam/source/ocaml/CamlQt6/docs/ARCHITECTURE.md)
+- [Cookbook & Tutorial Guide](file:///home/yotam/source/ocaml/CamlQt6/docs/TUTORIAL.md)
+- [Windows Testing & Setup Guide](file:///home/yotam/source/ocaml/CamlQt6/docs/WINDOWS_TESTING.md)
+- [Project Roadmap & Completed Milestones](file:///home/yotam/source/ocaml/CamlQt6/ROADMAP.md)
 
 ---
 

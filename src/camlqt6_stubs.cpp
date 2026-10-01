@@ -72,7 +72,7 @@
 #include <cstring>
 #include <vector>
 
-#include "oqt6_stubs.h"
+#include "camlqt6_stubs.h"
 
 static void finalize_qobject(value v) {
     OCamlQObject* holder = QObject_holder(v);
@@ -665,22 +665,35 @@ static int global_argc = 0;
 static std::vector<char*> global_argv;
 static QApplication* global_app = nullptr;
 
-static void cleanup_qt_at_exit() {
-    if (global_app) {
-        const auto topLevelWidgets = QApplication::topLevelWidgets();
-        for (QWidget* w : topLevelWidgets) {
-            delete w;
-        }
-        delete global_app;
-        global_app = nullptr;
+static void qt_message_handler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
+    Q_UNUSED(context);
+    if (msg.contains("propagateSizeHints") || msg.contains("QThreadStorage")) return;
+    QByteArray localMsg = msg.toLocal8Bit();
+    switch (type) {
+    case QtDebugMsg:
+        fprintf(stdout, "Debug: %s\n", localMsg.constData());
+        break;
+    case QtInfoMsg:
+        fprintf(stdout, "Info: %s\n", localMsg.constData());
+        break;
+    case QtWarningMsg:
+        fprintf(stderr, "Warning: %s\n", localMsg.constData());
+        break;
+    case QtCriticalMsg:
+        fprintf(stderr, "Critical: %s\n", localMsg.constData());
+        break;
+    case QtFatalMsg:
+        fprintf(stderr, "Fatal: %s\n", localMsg.constData());
+        abort();
     }
 }
 
 CAMLprim value caml_oqt6_qapplication_create(value v_args) {
     CAMLparam1(v_args);
     if (global_app != nullptr) {
-        caml_failwith("Oqt6: QApplication has already been created");
+        caml_failwith("CamlQt6: QApplication has already been created");
     }
+    qInstallMessageHandler(qt_message_handler);
 
     if (Is_block(v_args)) {
         value arr = Field(v_args, 0);
@@ -694,12 +707,11 @@ CAMLprim value caml_oqt6_qapplication_create(value v_args) {
     } else {
         global_argc = 1;
         global_argv.resize(2);
-        global_argv[0] = strdup("oqt6_app");
+        global_argv[0] = strdup("camlqt6_app");
         global_argv[1] = nullptr;
     }
 
     global_app = new QApplication(global_argc, global_argv.data());
-    std::atexit(cleanup_qt_at_exit);
     CAMLreturn(alloc_qobject(global_app, false));
 }
 

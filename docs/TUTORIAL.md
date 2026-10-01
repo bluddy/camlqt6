@@ -1,6 +1,6 @@
-# OQt6 Tutorial & Guide
+# CamlQt6 Tutorial & Guide
 
-Welcome to the **OQt6** tutorial! This guide covers building desktop applications in OCaml with Qt 6, from basic windows to custom 2D painting, zero-copy data tables, and modern reactive declarative UIs.
+Welcome to the **CamlQt6** tutorial! This guide covers building desktop applications in OCaml with Qt 6, from basic windows to custom 2D painting, zero-copy data tables, and modern reactive declarative UIs.
 
 ---
 
@@ -31,18 +31,18 @@ opam exec -- dune runtest
 The imperative API provides direct, 1-to-1 access to Qt's widgets and layouts:
 
 ```ocaml
-open Oqt6
+open CamlQt6
 
 let () =
   let app = App.create () in
   let win = Widget.create () in
-  Widget.set_window_title win "My First OQt6 App";
+  Widget.set_window_title win "My First CamlQt6 App";
   Widget.resize win ~width:350 ~height:200;
 
   (* Set up a vertical box layout *)
   let layout = Layout.VBox.create ~parent:win () in
 
-  let label = Label.create ~text:"Welcome to OQt6!" () in
+  let label = Label.create ~text:"Welcome to CamlQt6!" () in
   Layout.add_widget layout label;
 
   let btn = Button.create ~text:"Click Me" () in
@@ -64,7 +64,7 @@ Rather than manually instantiating widgets and managing callbacks, the `Dsl` mod
 
 ### 3.1 Reactive Signals (`State`)
 ```ocaml
-open Oqt6
+open CamlQt6
 
 let count = State.create 0
 
@@ -77,7 +77,7 @@ State.update count (fun n -> n + 1)
 
 ### 3.2 Declarative Counter Example
 ```ocaml
-open Oqt6
+open CamlQt6
 
 let () =
   let count = State.create 0 in
@@ -101,7 +101,7 @@ let () =
 
 ### 3.3 Bidirectional Form Binding & Conditional Views
 ```ocaml
-open Oqt6
+open CamlQt6
 
 let () =
   let name = State.create "" in
@@ -136,7 +136,7 @@ let () =
 The `Canvas` widget exposes C++ virtual method trampolines directly to OCaml:
 
 ```ocaml
-open Oqt6
+open CamlQt6
 
 let () =
   let app = App.create () in
@@ -168,10 +168,10 @@ let () =
 
 ## 5. High-Performance Model/View Tables
 
-`oqt6` supports zero-copy functional table models without duplicating OCaml memory into C++:
+`CamlQt6` supports zero-copy functional table models without duplicating OCaml memory into C++:
 
 ```ocaml
-open Oqt6
+open CamlQt6
 
 type user = { id : int; name : string; role : string }
 
@@ -215,7 +215,7 @@ let () =
 Modal dialogs automatically release the OCaml domain lock, allowing other domains to run while awaiting user input:
 
 ```ocaml
-open Oqt6
+open CamlQt6
 
 (* Color Dialog *)
 let pick_color parent =

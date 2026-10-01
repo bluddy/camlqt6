@@ -1,4 +1,4 @@
-open Oqt6
+open Camlqt6
 
 type tool = PenTool | RectTool | EllipseTool
 
@@ -10,7 +10,7 @@ type shape =
 let () =
   let app = App.create () in
   let win = MainWindow.create () in
-  Widget.set_window_title win "OQt6 Interactive Drawing Canvas";
+  Widget.set_window_title win "CamlQt6 Interactive Drawing Canvas";
   Widget.resize win ~width:900 ~height:650;
 
   let central = Widget.create ~parent:win () in
@@ -179,7 +179,7 @@ let () =
     Painter.set_font p font;
     let text_pen = Pen.create ~color:(Color.rgb 180 180 180 ()) () in
     Painter.set_pen p text_pen;
-    Painter.draw_text p ~x:15 ~y:25 "OQt6 Vector Canvas - Paint freely or draw geometric shapes";
+    Painter.draw_text p ~x:15 ~y:25 "CamlQt6 Vector Canvas - Paint freely or draw geometric shapes";
 
     (* Draw completed shapes *)
     List.iter (function

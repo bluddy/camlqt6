@@ -1,6 +1,6 @@
-# OQt6: Comprehensive Development Plan & Architecture
+# CamlQt6: Comprehensive Development Plan & Architecture
 
-This document outlines the strategy for expanding **OQt6** into a full-featured, cross-platform Qt 6 binding for OCaml.
+This document outlines the strategy for expanding **CamlQt6** into a full-featured, cross-platform Qt 6 binding for OCaml.
 
 ---
 
@@ -29,7 +29,7 @@ Qt 6 is one of the largest application frameworks in existence:
 ```mermaid
 graph TD
     A["Qt 6 C++ Headers / AST"] -->|Generator Tool| B["Tier 1: Low-Level C ABI Shim & Raw FFI"]
-    B --> C["OQt6 Raw Primitives (external ...)"]
+    B --> C["CamlQt6 Raw Primitives (external ...)"]
     C -->|Hand-Crafted / Agent Designed| D["Tier 2: Idiomatic OCaml Layer"]
     D --> E["Subtyping via Phantom Types ([> `Tag ] t)"]
     D --> F["Signal & Slot Reactive Closures"]
@@ -93,7 +93,7 @@ flowchart LR
    - [x] `QPen`: Colors, stroke widths, styles (`Solid_line`, `Dash_line`, `Dot_line`, `No_pen`).
    - [x] `QBrush`: Colors, styles (`Solid_pattern`, `No_brush`).
    - [x] `QPainter`: `draw_line`, `draw_rect`, `fill_rect`, `draw_rounded_rect`, `draw_ellipse`, `draw_text`, affine transforms (`translate`, `scale`, `rotate`), state stack (`save`, `restore`).
-   - [x] Interactive demo: [examples/drawing_canvas.ml](file:///home/yotam/source/ocaml/oqt6/examples/drawing_canvas.ml).
+   - [x] Interactive demo: [examples/drawing_canvas.ml](file:///home/yotam/source/ocaml/CamlQt6/examples/drawing_canvas.ml).
 
 ---
 
@@ -110,7 +110,7 @@ flowchart LR
    - [x] `TableModel` (`OCamlTableModel : public QAbstractTableModel`): Zero-copy functional table model binding arbitrary OCaml in-memory data structures (arrays of records, tuples, maps) directly into Qt views with `notify_reset` and `notify_data_changed`.
 3. **Selection Models:**
    - [x] `QItemSelectionModel`: Current index, selected rows list, selection change notifications.
-   - [x] Interactive demo: [examples/table_view_demo.ml](file:///home/yotam/source/ocaml/oqt6/examples/table_view_demo.ml).
+   - [x] Interactive demo: [examples/table_view_demo.ml](file:///home/yotam/source/ocaml/CamlQt6/examples/table_view_demo.ml).
 
 ---
 
@@ -136,7 +136,7 @@ flowchart LR
    - [x] `QIcon`: Loading from file, pixmap, or system desktop theme.
    - [x] `QCursor`: Typed mouse cursors (`Pointing_hand`, `Cross`, `Wait`, `I_beam`, etc.) and unsetting.
    - [x] `Painter.draw_pixmap`: Blitting pixmaps onto canvas viewports.
-   - [x] Interactive demo: [examples/workbench_demo.ml](file:///home/yotam/source/ocaml/oqt6/examples/workbench_demo.ml).
+   - [x] Interactive demo: [examples/workbench_demo.ml](file:///home/yotam/source/ocaml/CamlQt6/examples/workbench_demo.ml).
 
 ---
 
@@ -157,7 +157,7 @@ flowchart LR
 3. **Application Runner:**
    - [x] `Dsl.mount`: Compiles the declarative specification tree into a live Qt widget hierarchy.
    - [x] `Dsl.run`: One-line application execution with automatic event loop setup.
-   - [x] Interactive demo: [examples/declarative_todo.ml](file:///home/yotam/source/ocaml/oqt6/examples/declarative_todo.ml).
+   - [x] Interactive demo: [examples/declarative_todo.ml](file:///home/yotam/source/ocaml/CamlQt6/examples/declarative_todo.ml).
 
 ---
 

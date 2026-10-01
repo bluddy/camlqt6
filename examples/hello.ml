@@ -1,16 +1,16 @@
-open Oqt6
+open Camlqt6
 
 let () =
   let app = App.create () in
 
   let win = Widget.create () in
-  Widget.set_window_title win "OQt6 Demo - OCaml Qt6 Bindings";
+  Widget.set_window_title win "CamlQt6 Demo - OCaml Qt6 Bindings";
   Widget.resize win ~width:420 ~height:320;
 
   let layout = Layout.VBox.create ~parent:win () in
 
   (* Header Label *)
-  let title_label = Label.create ~text:"🚀 OQt6: OCaml bindings for Qt 6" () in
+  let title_label = Label.create ~text:"🚀 CamlQt6: OCaml bindings for Qt 6" () in
   Widget.set_style_sheet title_label "font-size: 16px; font-weight: bold; color: #2b5c8f; margin-bottom: 8px;";
   Layout.add_widget layout title_label;
 

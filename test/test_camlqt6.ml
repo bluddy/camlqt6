@@ -1,10 +1,10 @@
-open Oqt6
+open Camlqt6
 
 let () =
-  print_endline "=== Starting OQt6 Test Suite ===";
+  print_endline "=== Starting CamlQt6 Test Suite ===";
 
   (* Initialize QApplication with offscreen platform for headless automated test *)
-  let app = App.create ~args:[| "test_oqt6"; "-platform"; "offscreen" |] () in
+  let app = App.create ~args:[| "test_camlqt6"; "-platform"; "offscreen" |] () in
   assert (Object.is_valid app);
 
   (* 1. Test Widget creation and properties *)
@@ -551,8 +551,8 @@ let () =
   assert (not (MimeData.has_text mime));
 
   (* 36. Test QClipboard *)
-  Clipboard.set_text "OQt6 Clipboard Data";
-  assert (Clipboard.text () = Some "OQt6 Clipboard Data");
+  Clipboard.set_text "CamlQt6 Clipboard Data";
+  assert (Clipboard.text () = Some "CamlQt6 Clipboard Data");
 
   let clip_pix = Pixmap.create ~width:32 ~height:32 in
   Pixmap.fill clip_pix (Color.rgb 255 128 0 ());
@@ -626,4 +626,4 @@ let () =
   assert (not (Object.is_valid temp_parent));
   assert (not (Object.is_valid temp_child));
 
-  print_endline "=== All OQt6 Tests Passed Successfully! ==="
+  print_endline "=== All CamlQt6 Tests Passed Successfully! ==="

@@ -62,7 +62,7 @@ let () =
   ] in
   Arg.parse args ignore "Discover Qt 6 configuration";
 
-  C.main ~name:"oqt6-discover" (fun c ->
+  C.main ~name:"camlqt6-discover" (fun c ->
     let ccomp_type =
       match C.ocaml_config_var c "ccomp_type" with
       | Some s -> s
@@ -88,8 +88,14 @@ let () =
         ["-lstdc++"]
     in
 
+    let get_env_flags name fallback =
+      match Sys.getenv_opt name with
+      | Some s -> Some s
+      | None -> Sys.getenv_opt fallback
+    in
     let cxxflags, clibs =
-      match Sys.getenv_opt "OQT6_CFLAGS", Sys.getenv_opt "OQT6_LIBS" with
+      match get_env_flags "CAMLQT6_CFLAGS" "OQT6_CFLAGS",
+            get_env_flags "CAMLQT6_LIBS" "OQT6_LIBS" with
       | Some cflags, Some libs ->
         (default_cxxflags @ split_ws cflags, split_ws libs @ default_cpp_runtime)
       | _ ->
@@ -136,7 +142,7 @@ let () =
                    Please ensure Qt 6 development libraries are installed and do one of:\n\
                    1. Set QTDIR=<path_to_qt6_prefix> (e.g., C:\\Qt\\6.8.0\\msvc2022_64)\n\
                    2. Ensure pkg-config can find Qt6Widgets (pkg-config --modversion Qt6Widgets)\n\
-                   3. Explicitly set OQT6_CFLAGS and OQT6_LIBS environment variables."
+                   3. Explicitly set CAMLQT6_CFLAGS and CAMLQT6_LIBS environment variables."
     in
 
     C.Flags.write_sexp !cxxflags_path cxxflags;

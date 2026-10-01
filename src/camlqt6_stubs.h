@@ -1,5 +1,5 @@
-#ifndef OQT6_STUBS_H
-#define OQT6_STUBS_H
+#ifndef CAMLQT6_STUBS_H
+#define CAMLQT6_STUBS_H
 
 #ifndef NOMINMAX
 #define NOMINMAX

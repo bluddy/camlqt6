@@ -1,12 +1,12 @@
-# Windows Testing & Setup Guide for OQt6
+# Windows Testing & Setup Guide for CamlQt6
 
-This document provides step-by-step instructions for building, running tests, and executing interactive GUI demos of **OQt6** natively on **Windows 11 / Windows 10**.
+This document provides step-by-step instructions for building, running tests, and executing interactive GUI demos of **CamlQt6** natively on **Windows 11 / Windows 10**.
 
 ---
 
 ## 1. Supported Windows Toolchains
 
-OQt6 supports both major C++ toolchains on Windows:
+CamlQt6 supports both major C++ toolchains on Windows:
 1. **MSVC (Visual Studio 2022 / 2019):** Recommended for native Windows development.
 2. **MinGW-w64 (GCC / UCRT64 / MSYS2):** Recommended if using a GCC-based Windows OCaml toolchain.
 
@@ -79,18 +79,18 @@ $env:PATH = "$env:QTDIR\bin;$env:PATH"
 
 ### 3.2 Manual Environment Variable Overrides (Optional)
 
-If your Qt 6 installation is in a custom location, you can explicitly provide compile and link flags via `OQT6_CFLAGS` and `OQT6_LIBS`:
+If your Qt 6 installation is in a custom location, you can explicitly provide compile and link flags via `CamlQt6_CFLAGS` and `CamlQt6_LIBS`:
 
 #### For MSVC:
 ```cmd
-set OQT6_CFLAGS=-I"C:\Qt\6.8.0\msvc2022_64\include" -I"C:\Qt\6.8.0\msvc2022_64\include\QtCore" -I"C:\Qt\6.8.0\msvc2022_64\include\QtGui" -I"C:\Qt\6.8.0\msvc2022_64\include\QtWidgets"
-set OQT6_LIBS=/LIBPATH:"C:\Qt\6.8.0\msvc2022_64\lib" Qt6Widgets.lib Qt6Gui.lib Qt6Core.lib
+set CamlQt6_CFLAGS=-I"C:\Qt\6.8.0\msvc2022_64\include" -I"C:\Qt\6.8.0\msvc2022_64\include\QtCore" -I"C:\Qt\6.8.0\msvc2022_64\include\QtGui" -I"C:\Qt\6.8.0\msvc2022_64\include\QtWidgets"
+set CamlQt6_LIBS=/LIBPATH:"C:\Qt\6.8.0\msvc2022_64\lib" Qt6Widgets.lib Qt6Gui.lib Qt6Core.lib
 ```
 
 #### For MinGW:
 ```cmd
-set OQT6_CFLAGS=-IC:/Qt/6.8.0/mingw_64/include -IC:/Qt/6.8.0/mingw_64/include/QtCore -IC:/Qt/6.8.0/mingw_64/include/QtGui -IC:/Qt/6.8.0/mingw_64/include/QtWidgets
-set OQT6_LIBS=-LC:/Qt/6.8.0/mingw_64/lib -lQt6Widgets -lQt6Gui -lQt6Core
+set CamlQt6_CFLAGS=-IC:/Qt/6.8.0/mingw_64/include -IC:/Qt/6.8.0/mingw_64/include/QtCore -IC:/Qt/6.8.0/mingw_64/include/QtGui -IC:/Qt/6.8.0/mingw_64/include/QtWidgets
+set CamlQt6_LIBS=-LC:/Qt/6.8.0/mingw_64/lib -lQt6Widgets -lQt6Gui -lQt6Core
 ```
 
 ---
@@ -113,12 +113,12 @@ dune runtest
 
 Expected output:
 ```
-=== Starting OQt6 Test Suite ===
+=== Starting CamlQt6 Test Suite ===
 Entering QApplication event loop...
 Timer callback executed successfully in event loop!
 Event loop exited cleanly.
 Testing memory model and object lifetime tracking...
-=== All OQt6 Tests Passed Successfully! ===
+=== All CamlQt6 Tests Passed Successfully! ===
 ```
 
 ---
@@ -148,7 +148,7 @@ run.bat workbench_demo
 
 ## 6. Creating Standalone Windows Application Bundles
 
-To share your OQt6 application with Windows users who **do not have OCaml, Opam, or Qt installed**:
+To share your CamlQt6 application with Windows users who **do not have OCaml, Opam, or Qt installed**:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\bundle_windows.ps1 hello
@@ -169,7 +169,7 @@ This runs Qt's `windeployqt` tool to copy all required Qt 6 DLLs, plugins, and M
 
 ### 6.2 `<windows.h>` `min` and `max` Macro Conflicts
 - **Cause:** Standard Windows SDK headers define `min(a,b)` and `max(a,b)` as preprocessor macros, which break C++ `std::min`, `std::max`, and Qt member functions.
-- **Solution:** `src/oqt6_stubs.h` already defines `#define NOMINMAX` before any includes to prevent this issue.
+- **Solution:** `src/CamlQt6_stubs.h` already defines `#define NOMINMAX` before any includes to prevent this issue.
 
 ### 6.3 Mixed Slashes in Paths
 - When specifying paths in environment variables with MSVC, either backslashes (`\`) or forward slashes (`/`) work, but avoid trailing slashes before quotes (e.g. use `-I"C:\path"` instead of `-I"C:\path\"`).

@@ -1,9 +1,9 @@
-open Oqt6
+open Camlqt6
 
 let () =
   let app = App.create () in
   let win = MainWindow.create () in
-  Widget.set_window_title win "OQt6 Drag, Drop & Clipboard Studio";
+  Widget.set_window_title win "CamlQt6 Drag, Drop & Clipboard Studio";
   Widget.resize win ~width:750 ~height:480;
 
   let central = Widget.create ~parent:win () in
@@ -118,7 +118,7 @@ let () =
   Layout.set_spacing right_layout 10;
   Layout.add_widget root_layout right_group;
 
-  let target_hint = Label.create ~text:"Accepts text & file drops from inside or outside OQt6:" ~parent:right_group () in
+  let target_hint = Label.create ~text:"Accepts text & file drops from inside or outside CamlQt6:" ~parent:right_group () in
   Layout.add_widget right_layout target_hint;
 
   let drop_target = Canvas.create ~parent:right_group () in

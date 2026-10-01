@@ -1,8 +1,8 @@
-(** OQt6 Phase 4 Demo: Developer Workbench
+(** CamlQt6 Phase 4 Demo: Developer Workbench
     Showcases QTabWidget, QSplitter, QScrollArea, QGroupBox, QToolBar,
     QDockWidget, QPixmap, QIcon, QCursor, and standard Qt Dialogs. *)
 
-open Oqt6
+open Camlqt6
 
 let create_colored_icon r g b =
   let pm = Pixmap.create ~width:24 ~height:24 in
@@ -12,7 +12,7 @@ let create_colored_icon r g b =
 let () =
   let app = App.create () in
   let main_win = MainWindow.create () in
-  Widget.set_window_title main_win "OQt6 Developer Workbench";
+  Widget.set_window_title main_win "CamlQt6 Developer Workbench";
   Widget.resize main_win ~width:1050 ~height:700;
 
   (* Set App / Window Icon *)
@@ -53,9 +53,9 @@ let () =
   StandardItemModel.append_row proj_model ["  core.ml"];
   StandardItemModel.append_row proj_model ["  gui.ml"];
   StandardItemModel.append_row proj_model ["  widgets.ml"];
-  StandardItemModel.append_row proj_model ["  oqt6.ml"];
+  StandardItemModel.append_row proj_model ["  CamlQt6.ml"];
   StandardItemModel.append_row proj_model ["test/"];
-  StandardItemModel.append_row proj_model ["  test_oqt6.ml"];
+  StandardItemModel.append_row proj_model ["  test_CamlQt6.ml"];
   StandardItemModel.append_row proj_model ["examples/"];
   StandardItemModel.append_row proj_model ["  workbench_demo.ml"];
   StandardItemModel.append_row proj_model ["dune-project"];
@@ -77,8 +77,8 @@ let () =
   let code_edit = TextEdit.create ~parent:editor_tabs () in
   Widget.set_style_sheet code_edit "font-family: monospace; font-size: 11pt;";
   TextEdit.set_plain_text code_edit
-    ("(* Welcome to OQt6 Developer Workbench *)\n" ^
-     "open Oqt6\n\n" ^
+    ("(* Welcome to CamlQt6 Developer Workbench *)\n" ^
+     "open Camlqt6\n\n" ^
      "let build_project () =\n" ^
      "  print_endline \"Building with Dune...\";\n" ^
      "  Timer.single_shot 500 (fun () ->\n" ^
@@ -97,7 +97,7 @@ let () =
     let (cx, cy) = !canvas_draw_pos in
     Painter.draw_rounded_rect painter ~x:(cx - 60) ~y:(cy - 60) ~width:120 ~height:120 ~x_radius:15.0 ~y_radius:15.0;
     Painter.set_font painter (Font.create ~family:"Sans" ~point_size:12 ~bold:true ());
-    Painter.draw_text painter ~x:(cx - 45) ~y:(cy + 5) "OQt6 Canvas";
+    Painter.draw_text painter ~x:(cx - 45) ~y:(cy + 5) "CamlQt6 Canvas";
 
     (* Draw test pixmap stamps in corners *)
     let stamp = Pixmap.create ~width:20 ~height:20 in

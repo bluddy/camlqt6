@@ -1,12 +1,12 @@
-# OQt6 Architecture & Technical Design
+# CamlQt6 Architecture & Technical Design
 
-`oqt6` provides safe, high-performance, and idiomatic OCaml bindings for the **Qt 6** application framework. This document details the technical design decisions, memory model, concurrency guarantees, and internal FFI plumbing.
+`CamlQt6` provides safe, high-performance, and idiomatic OCaml bindings for the **Qt 6** application framework. This document details the technical design decisions, memory model, concurrency guarantees, and internal FFI plumbing.
 
 ---
 
 ## 1. High-Level Architecture
 
-`oqt6` is architected in distinct layers:
+`CamlQt6` is architected in distinct layers:
 
 ```
 ┌────────────────────────────────────────────────────────┐
@@ -16,7 +16,7 @@
 │          High-Level OCaml API (`Widgets`, `Gui`)       │
 │  Phantom Subtyping, Canvas Trampolines, TableModel     │
 ├────────────────────────────────────────────────────────┤
-│             Safe C++ FFI Bridge (`oqt6_stubs`)         │
+│             Safe C++ FFI Bridge (`CamlQt6_stubs`)         │
 │  CamlDomainLockGuard, QPointer Tracking, Root Cleanup  │
 ├────────────────────────────────────────────────────────┤
 │                     Native Qt 6 Core & GUI             │
@@ -32,7 +32,7 @@ Qt uses an ownership tree where `QObject` parent-child relationships dictate des
 
 ### 2.1 Guarded Pointers (`QPointer<QObject>`)
 
-Instead of storing raw C++ pointers (`QWidget*`) directly in OCaml `Custom_tag` blocks, `oqt6` stores a heap-allocated `QPointer<QObject>`:
+Instead of storing raw C++ pointers (`QWidget*`) directly in OCaml `Custom_tag` blocks, `CamlQt6` stores a heap-allocated `QPointer<QObject>`:
 
 ```cpp
 struct QObjectBox {
@@ -67,7 +67,7 @@ OCaml 5 enforces a domain runtime lock. Calling OCaml runtime functions or closu
 
 ### 3.1 Re-entrant Domain Lock Guard (`CamlDomainLockGuard`)
 
-`oqt6` implements a thread-local re-entrant lock guard:
+`CamlQt6` implements a thread-local re-entrant lock guard:
 
 ```cpp
 static thread_local int thread_domain_lock_depth = 0;
@@ -119,7 +119,7 @@ QObject -> QWidget -> QPushButton
                    -> QMainWindow
 ```
 
-Instead of requiring explicit upcasting or sacrificing type safety, `oqt6` encodes the hierarchy using **phantom polymorphic variants**:
+Instead of requiring explicit upcasting or sacrificing type safety, `CamlQt6` encodes the hierarchy using **phantom polymorphic variants**:
 
 ```ocaml
 type (+'a) t
@@ -138,13 +138,13 @@ This guarantees:
 - Any `QPushButton` (`qpush_button Core.t`) can be passed directly to `Layout.add_widget` without casting.
 - Passing a non-widget (e.g. `QTimer` of type `qtimer Core.t`) is rejected at compile time.
 - Zero runtime overhead: all types erase to the same underlying pointer representation.
-- [`Widget.as_widget`](file:///home/yotam/source/ocaml/oqt6/src/widgets.ml#L138) provides a statically verified coercion for heterogeneous collections.
+- [`Widget.as_widget`](file:///home/yotam/source/ocaml/CamlQt6/src/widgets.ml#L138) provides a statically verified coercion for heterogeneous collections.
 
 ---
 
 ## 5. Event Trampolines (`OCamlCanvas`)
 
-For custom rendering and interactive 2D graphics, `oqt6` implements a C++ virtual method trampoline subclass, `OCamlCanvas : public QWidget`:
+For custom rendering and interactive 2D graphics, `CamlQt6` implements a C++ virtual method trampoline subclass, `OCamlCanvas : public QWidget`:
 
 ```cpp
 class OCamlCanvas : public QWidget {
@@ -159,7 +159,7 @@ protected:
 ```
 
 1. **Safe Painter Scope:** Inside `paintEvent`, a `QPainter` is allocated on the stack and bound to the widget. A temporary OCaml handle wrapping `QPainter*` is passed to the user's callback. When the callback finishes, the OCaml handle is explicitly invalidated, preventing use of dangling painter pointers.
-2. **Polymorphic Casts (`dynamic_cast`):** `oqt6` uses `dynamic_cast<T*>` on `get_qobject` to support custom virtual subclasses without requiring `Q_OBJECT` macro code generation (`moc`).
+2. **Polymorphic Casts (`dynamic_cast`):** `CamlQt6` uses `dynamic_cast<T*>` on `get_qobject` to support custom virtual subclasses without requiring `Q_OBJECT` macro code generation (`moc`).
 
 ---
 
@@ -167,7 +167,7 @@ protected:
 
 Qt's `QTableView`, `QTreeView`, and `QListView` expect a `QAbstractItemModel`. Standard bindings often serialize data into C++ `QStandardItemModel` structures, duplicating memory.
 
-`oqt6` implements `OCamlTableModel : public QAbstractTableModel`:
+`CamlQt6` implements `OCamlTableModel : public QAbstractTableModel`:
 - Directly delegates `rowCount()`, `columnCount()`, `data()`, and `headerData()` to OCaml closures.
 - Zero data copying: tabular data stored in OCaml memory (arrays of records, tuples, Hashtbls, or immutable trees) is rendered directly by Qt views on demand.
 - Provides `notify_reset` and `notify_data_changed` to signal view updates when OCaml state changes.

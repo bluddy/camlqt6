@@ -1,4 +1,4 @@
-open Oqt6
+open Camlqt6
 
 type employee = {
   id : int;
@@ -20,7 +20,7 @@ let initial_employees = [
 let () =
   let app = App.create () in
   let win = MainWindow.create () in
-  Widget.set_window_title win "OQt6 Model/View Architecture Demo";
+  Widget.set_window_title win "CamlQt6 Model/View Architecture Demo";
   Widget.resize win ~width:950 ~height:600;
 
   let central = Widget.create ~parent:win () in
