@@ -72,21 +72,37 @@
 #include <cstring>
 #include <vector>
 
+#include <QEvent>
+
 #include "camlqt6_stubs.h"
 
 static void finalize_qobject(value v) {
     OCamlQObject* holder = QObject_holder(v);
     if (holder->owned && !holder->ptr.isNull()) {
-        delete holder->ptr.data();
+        holder->ptr.data()->deleteLater();
     }
-    holder->ptr = nullptr;
+    holder->~OCamlQObject();
+}
+
+static int compare_qobject(value v1, value v2) {
+    OCamlQObject* h1 = QObject_holder(v1);
+    OCamlQObject* h2 = QObject_holder(v2);
+    QObject* p1 = h1->ptr.data();
+    QObject* p2 = h2->ptr.data();
+    if (p1 == p2) return 0;
+    return (p1 < p2) ? -1 : 1;
+}
+
+static intnat hash_qobject(value v) {
+    OCamlQObject* h = QObject_holder(v);
+    return (intnat)h->ptr.data();
 }
 
 static struct custom_operations qobject_custom_ops = {
     (char*)"org.oqt6.qobject",
     finalize_qobject,
-    custom_compare_default,
-    custom_hash_default,
+    compare_qobject,
+    hash_qobject,
     custom_serialize_default,
     custom_deserialize_default,
     custom_compare_ext_default,
@@ -96,7 +112,7 @@ static struct custom_operations qobject_custom_ops = {
 value alloc_qobject(QObject* obj, bool owned) {
     if (!obj) return Val_unit;
     value v = caml_alloc_custom(&qobject_custom_ops, sizeof(OCamlQObject), 0, 1);
-    OCamlQObject* holder = QObject_holder(v);
+    OCamlQObject* holder = new (Data_custom_val(v)) OCamlQObject();
     holder->ptr = obj;
     holder->owned = owned;
     return v;
@@ -107,7 +123,8 @@ void mark_parented(value v) {
     holder->owned = false;
 }
 
-thread_local int thread_domain_lock_depth = 1;
+thread_local int thread_domain_lock_depth = 0;
+thread_local bool thread_is_registered = false;
 
 static void connect_root_cleanup(QObject* sender, value* root) {
     QObject::connect(sender, &QObject::destroyed, [root](QObject*) {
@@ -333,9 +350,13 @@ protected:
         if (paint_cb) {
             QPainter painter(this);
             CamlDomainLockGuard guard;
-            value v_p = alloc_painter(&painter);
-            caml_callback_exn(*paint_cb, v_p);
+            CAMLparam0();
+            CAMLlocal1(v_p);
+            v_p = alloc_painter(&painter);
+            value res = caml_callback_exn(*paint_cb, v_p);
+            handle_callback_result(res);
             Painter_holder(v_p)->painter = nullptr;
+            CAMLdrop;
         } else {
             QWidget::paintEvent(event);
         }
@@ -354,7 +375,8 @@ protected:
                 Val_int((int)event->position().y()),
                 Val_int(btn)
             };
-            caml_callbackN_exn(*mouse_press_cb, 3, args);
+            value res = caml_callbackN_exn(*mouse_press_cb, 3, args);
+            handle_callback_result(res);
         } else {
             QWidget::mousePressEvent(event);
         }
@@ -373,7 +395,8 @@ protected:
                 Val_int((int)event->position().y()),
                 Val_int(btn)
             };
-            caml_callbackN_exn(*mouse_release_cb, 3, args);
+            value res = caml_callbackN_exn(*mouse_release_cb, 3, args);
+            handle_callback_result(res);
         } else {
             QWidget::mouseReleaseEvent(event);
         }
@@ -392,7 +415,8 @@ protected:
                 Val_int((int)event->position().y()),
                 Val_int(btn)
             };
-            caml_callbackN_exn(*mouse_move_cb, 3, args);
+            value res = caml_callbackN_exn(*mouse_move_cb, 3, args);
+            handle_callback_result(res);
         } else {
             QWidget::mouseMoveEvent(event);
         }
@@ -401,12 +425,17 @@ protected:
     void keyPressEvent(QKeyEvent* event) override {
         if (key_press_cb) {
             CamlDomainLockGuard guard;
+            CAMLparam0();
+            CAMLlocal1(v_str);
             QByteArray utf8 = event->text().toUtf8();
+            v_str = caml_copy_string(utf8.constData());
             value args[2] = {
                 Val_int(event->key()),
-                caml_copy_string(utf8.constData())
+                v_str
             };
-            caml_callbackN_exn(*key_press_cb, 2, args);
+            value res = caml_callbackN_exn(*key_press_cb, 2, args);
+            handle_callback_result(res);
+            CAMLdrop;
         } else {
             QWidget::keyPressEvent(event);
         }
@@ -421,7 +450,8 @@ protected:
                 Val_int(event->oldSize().width()),
                 Val_int(event->oldSize().height())
             };
-            caml_callbackN_exn(*resize_cb, 4, args);
+            value res = caml_callbackN_exn(*resize_cb, 4, args);
+            handle_callback_result(res);
         }
         QWidget::resizeEvent(event);
     }
@@ -429,14 +459,19 @@ protected:
     void dragEnterEvent(QDragEnterEvent* event) override {
         if (drag_enter_cb) {
             CamlDomainLockGuard guard;
-            value v_mime = alloc_qobject(const_cast<QMimeData*>(event->mimeData()), false);
+            CAMLparam0();
+            CAMLlocal1(v_mime);
+            v_mime = alloc_qobject(const_cast<QMimeData*>(event->mimeData()), false);
             value args[3] = {
                 Val_int((int)event->position().x()),
                 Val_int((int)event->position().y()),
                 v_mime
             };
             value res = caml_callbackN_exn(*drag_enter_cb, 3, args);
-            if (!Is_exception_result(res) && Bool_val(res)) {
+            handle_callback_result(res);
+            bool accepted = !Is_exception_result(res) && Bool_val(res);
+            CAMLdrop;
+            if (accepted) {
                 event->acceptProposedAction();
                 return;
             }
@@ -447,14 +482,19 @@ protected:
     void dragMoveEvent(QDragMoveEvent* event) override {
         if (drag_move_cb) {
             CamlDomainLockGuard guard;
-            value v_mime = alloc_qobject(const_cast<QMimeData*>(event->mimeData()), false);
+            CAMLparam0();
+            CAMLlocal1(v_mime);
+            v_mime = alloc_qobject(const_cast<QMimeData*>(event->mimeData()), false);
             value args[3] = {
                 Val_int((int)event->position().x()),
                 Val_int((int)event->position().y()),
                 v_mime
             };
             value res = caml_callbackN_exn(*drag_move_cb, 3, args);
-            if (!Is_exception_result(res) && Bool_val(res)) {
+            handle_callback_result(res);
+            bool accepted = !Is_exception_result(res) && Bool_val(res);
+            CAMLdrop;
+            if (accepted) {
                 event->acceptProposedAction();
                 return;
             }
@@ -465,7 +505,8 @@ protected:
     void dragLeaveEvent(QDragLeaveEvent* event) override {
         if (drag_leave_cb) {
             CamlDomainLockGuard guard;
-            caml_callback_exn(*drag_leave_cb, Val_unit);
+            value res = caml_callback_exn(*drag_leave_cb, Val_unit);
+            handle_callback_result(res);
         }
         QWidget::dragLeaveEvent(event);
     }
@@ -473,13 +514,17 @@ protected:
     void dropEvent(QDropEvent* event) override {
         if (drop_cb) {
             CamlDomainLockGuard guard;
-            value v_mime = alloc_qobject(const_cast<QMimeData*>(event->mimeData()), false);
+            CAMLparam0();
+            CAMLlocal1(v_mime);
+            v_mime = alloc_qobject(const_cast<QMimeData*>(event->mimeData()), false);
             value args[3] = {
                 Val_int((int)event->position().x()),
                 Val_int((int)event->position().y()),
                 v_mime
             };
-            caml_callbackN_exn(*drop_cb, 3, args);
+            value res = caml_callbackN_exn(*drop_cb, 3, args);
+            handle_callback_result(res);
+            CAMLdrop;
             event->acceptProposedAction();
         } else {
             QWidget::dropEvent(event);
@@ -519,7 +564,10 @@ public:
         if (parent.isValid() || !row_count_cb) return 0;
         CamlDomainLockGuard guard;
         value res = caml_callback_exn(*row_count_cb, Val_unit);
-        if (Is_exception_result(res)) return 0;
+        if (Is_exception_result(res)) {
+            handle_callback_result(res);
+            return 0;
+        }
         return Int_val(res);
     }
 
@@ -527,7 +575,10 @@ public:
         if (parent.isValid() || !col_count_cb) return 0;
         CamlDomainLockGuard guard;
         value res = caml_callback_exn(*col_count_cb, Val_unit);
-        if (Is_exception_result(res)) return 0;
+        if (Is_exception_result(res)) {
+            handle_callback_result(res);
+            return 0;
+        }
         return Int_val(res);
     }
 
@@ -537,7 +588,10 @@ public:
         CamlDomainLockGuard guard;
         value args[2] = { Val_int(index.row()), Val_int(index.column()) };
         value res = caml_callbackN_exn(*data_cb, 2, args);
-        if (Is_exception_result(res)) return QVariant();
+        if (Is_exception_result(res)) {
+            handle_callback_result(res);
+            return QVariant();
+        }
         return QString::fromUtf8(String_val(res));
     }
 
@@ -549,7 +603,10 @@ public:
         int orient = (orientation == Qt::Horizontal) ? 0 : 1;
         value args[2] = { Val_int(section), Val_int(orient) };
         value res = caml_callbackN_exn(*header_data_cb, 2, args);
-        if (Is_exception_result(res)) return QVariant();
+        if (Is_exception_result(res)) {
+            handle_callback_result(res);
+            return QVariant();
+        }
         return QString::fromUtf8(String_val(res));
     }
 
@@ -599,6 +656,23 @@ CAMLprim value caml_oqt6_qobject_object_name(value v_obj) {
     CAMLreturn(caml_copy_string(utf8.constData()));
 }
 
+CAMLprim value caml_oqt6_qobject_connect_destroyed(value v_obj, value v_cb) {
+    CAMLparam2(v_obj, v_cb);
+    QObject* obj = get_qobject<QObject>(v_obj);
+    value* root = new value;
+    *root = v_cb;
+    caml_register_global_root(root);
+
+    QObject::connect(obj, &QObject::destroyed, [root]() {
+        CamlDomainLockGuard guard;
+        value res = caml_callback_exn(*root, Val_unit);
+        handle_callback_result(res);
+    });
+    connect_root_cleanup(obj, root);
+
+    CAMLreturn(Val_unit);
+}
+
 /* QTimer primitives */
 
 CAMLprim value caml_oqt6_qtimer_single_shot(value v_msec, value v_cb) {
@@ -610,7 +684,8 @@ CAMLprim value caml_oqt6_qtimer_single_shot(value v_msec, value v_cb) {
 
     QTimer::singleShot(msec, [root]() {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_unit);
+        value res = caml_callback_exn(*root, Val_unit);
+        handle_callback_result(res);
         caml_remove_global_root(root);
         delete root;
     });
@@ -652,7 +727,8 @@ CAMLprim value caml_oqt6_qtimer_connect_timeout(value v_timer, value v_cb) {
 
     QObject::connect(timer, &QTimer::timeout, [root]() {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_unit);
+        value res = caml_callback_exn(*root, Val_unit);
+        handle_callback_result(res);
     });
     connect_root_cleanup(timer, root);
 
@@ -688,11 +764,55 @@ static void qt_message_handler(QtMsgType type, const QMessageLogContext &context
     }
 }
 
+class OCamlTaskEvent : public QEvent {
+public:
+    static const QEvent::Type TaskEventType = static_cast<QEvent::Type>(QEvent::User + 100);
+    value* task_root;
+    OCamlTaskEvent(value* root) : QEvent(TaskEventType), task_root(root) {}
+    ~OCamlTaskEvent() {
+        if (task_root) {
+            CamlDomainLockGuard guard;
+            caml_remove_global_root(task_root);
+            delete task_root;
+        }
+    }
+};
+
+class OCamlUiDispatcher : public QObject {
+public:
+    static OCamlUiDispatcher* instance() {
+        static OCamlUiDispatcher* disp = nullptr;
+        if (!disp) {
+            disp = new OCamlUiDispatcher();
+            if (QCoreApplication::instance()) {
+                disp->moveToThread(QCoreApplication::instance()->thread());
+            }
+        }
+        return disp;
+    }
+protected:
+    void customEvent(QEvent* event) override {
+        if (event->type() == OCamlTaskEvent::TaskEventType) {
+            OCamlTaskEvent* task = static_cast<OCamlTaskEvent*>(event);
+            if (task->task_root) {
+                CamlDomainLockGuard guard;
+                value res = caml_callback_exn(*(task->task_root), Val_unit);
+                handle_callback_result(res);
+                caml_remove_global_root(task->task_root);
+                delete task->task_root;
+                task->task_root = nullptr;
+            }
+        }
+    }
+};
+
 CAMLprim value caml_oqt6_qapplication_create(value v_args) {
     CAMLparam1(v_args);
     if (global_app != nullptr) {
         caml_failwith("CamlQt6: QApplication has already been created");
     }
+    thread_domain_lock_depth = 1;
+    thread_is_registered = true;
     qInstallMessageHandler(qt_message_handler);
 
     if (Is_block(v_args)) {
@@ -712,6 +832,7 @@ CAMLprim value caml_oqt6_qapplication_create(value v_args) {
     }
 
     global_app = new QApplication(global_argc, global_argv.data());
+    OCamlUiDispatcher::instance();
     CAMLreturn(alloc_qobject(global_app, false));
 }
 
@@ -733,6 +854,41 @@ CAMLprim value caml_oqt6_qapplication_process_events(value v_unit) {
     QCoreApplication::processEvents();
     caml_acquire_runtime_system();
     thread_domain_lock_depth++;
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qapplication_process_events_wait(value v_timeout_ms) {
+    CAMLparam1(v_timeout_ms);
+    int timeout = Is_block(v_timeout_ms) ? Int_val(Field(v_timeout_ms, 0)) : 100;
+    thread_domain_lock_depth--;
+    caml_release_runtime_system();
+    QCoreApplication::processEvents(QEventLoop::WaitForMoreEvents, timeout);
+    caml_acquire_runtime_system();
+    thread_domain_lock_depth++;
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qapplication_is_ui_thread(value v_unit) {
+    CAMLparam1(v_unit);
+    if (!QCoreApplication::instance()) {
+        CAMLreturn(Val_bool(true));
+    }
+    bool is_ui = (QThread::currentThread() == QCoreApplication::instance()->thread());
+    CAMLreturn(Val_bool(is_ui));
+}
+
+CAMLprim value caml_oqt6_qapplication_post_task(value v_task) {
+    CAMLparam1(v_task);
+    if (!QCoreApplication::instance()) {
+        value res = caml_callback_exn(v_task, Val_unit);
+        handle_callback_result(res);
+        CAMLreturn(Val_unit);
+    }
+    value* root = new value;
+    *root = v_task;
+    caml_register_global_root(root);
+    OCamlTaskEvent* event = new OCamlTaskEvent(root);
+    QCoreApplication::postEvent(OCamlUiDispatcher::instance(), event);
     CAMLreturn(Val_unit);
 }
 
@@ -910,7 +1066,8 @@ CAMLprim value caml_oqt6_qpushbutton_connect_clicked(value v_btn, value v_cb) {
 
     QObject::connect(btn, &QPushButton::clicked, [root]() {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_unit);
+        value res = caml_callback_exn(*root, Val_unit);
+        handle_callback_result(res);
     });
     connect_root_cleanup(btn, root);
 
@@ -1009,7 +1166,8 @@ CAMLprim value caml_oqt6_qlineedit_connect_text_changed(value v_edit, value v_cb
         CamlDomainLockGuard guard;
         QByteArray utf8 = text.toUtf8();
         value v_str = caml_copy_string(utf8.constData());
-        caml_callback_exn(*root, v_str);
+        value res = caml_callback_exn(*root, v_str);
+        handle_callback_result(res);
     });
     connect_root_cleanup(edit, root);
 
@@ -1025,7 +1183,8 @@ CAMLprim value caml_oqt6_qlineedit_connect_return_pressed(value v_edit, value v_
 
     QObject::connect(edit, &QLineEdit::returnPressed, [root]() {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_unit);
+        value res = caml_callback_exn(*root, Val_unit);
+        handle_callback_result(res);
     });
     connect_root_cleanup(edit, root);
 
@@ -1157,7 +1316,8 @@ CAMLprim value caml_oqt6_qcheckbox_connect_toggled(value v_cb, value v_fn) {
 
     QObject::connect(cb, &QCheckBox::toggled, [root](bool checked) {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_bool(checked));
+        value res = caml_callback_exn(*root, Val_bool(checked));
+        handle_callback_result(res);
     });
     connect_root_cleanup(cb, root);
 
@@ -1216,7 +1376,8 @@ CAMLprim value caml_oqt6_qradiobutton_connect_toggled(value v_rb, value v_fn) {
 
     QObject::connect(rb, &QRadioButton::toggled, [root](bool checked) {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_bool(checked));
+        value res = caml_callback_exn(*root, Val_bool(checked));
+        handle_callback_result(res);
     });
     connect_root_cleanup(rb, root);
 
@@ -1292,7 +1453,8 @@ CAMLprim value caml_oqt6_qcombobox_connect_current_index_changed(value v_cb, val
 
     QObject::connect(cb, &QComboBox::currentIndexChanged, [root](int idx) {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_int(idx));
+        value res = caml_callback_exn(*root, Val_int(idx));
+        handle_callback_result(res);
     });
     connect_root_cleanup(cb, root);
 
@@ -1310,7 +1472,8 @@ CAMLprim value caml_oqt6_qcombobox_connect_current_text_changed(value v_cb, valu
         CamlDomainLockGuard guard;
         QByteArray utf8 = text.toUtf8();
         value v_str = caml_copy_string(utf8.constData());
-        caml_callback_exn(*root, v_str);
+        value res = caml_callback_exn(*root, v_str);
+        handle_callback_result(res);
     });
     connect_root_cleanup(cb, root);
 
@@ -1394,7 +1557,8 @@ CAMLprim value caml_oqt6_qspinbox_connect_value_changed(value v_sb, value v_fn) 
 
     QObject::connect(sb, &QSpinBox::valueChanged, [root](int val) {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_int(val));
+        value res = caml_callback_exn(*root, Val_int(val));
+        handle_callback_result(res);
     });
     connect_root_cleanup(sb, root);
 
@@ -1476,7 +1640,8 @@ CAMLprim value caml_oqt6_qslider_connect_value_changed(value v_s, value v_fn) {
 
     QObject::connect(s, &QSlider::valueChanged, [root](int val) {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_int(val));
+        value res = caml_callback_exn(*root, Val_int(val));
+        handle_callback_result(res);
     });
     connect_root_cleanup(s, root);
 
@@ -1624,7 +1789,8 @@ CAMLprim value caml_oqt6_qtextedit_connect_text_changed(value v_te, value v_fn) 
 
     QObject::connect(te, &QTextEdit::textChanged, [root]() {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_unit);
+        value res = caml_callback_exn(*root, Val_unit);
+        handle_callback_result(res);
     });
     connect_root_cleanup(te, root);
 
@@ -1732,8 +1898,9 @@ CAMLprim value caml_oqt6_qmainwindow_central_widget(value v_mw) {
     if (!w) {
         CAMLreturn(Val_int(0)); // None
     }
-    value some = caml_alloc(1, 0);
-    Store_field(some, 0, alloc_qobject(w, false));
+    CAMLlocal2(v_w, some);
+    v_w = alloc_qobject(w, false);
+    some = caml_alloc_some(v_w);
     CAMLreturn(some);
 }
 
@@ -1909,7 +2076,8 @@ CAMLprim value caml_oqt6_qaction_connect_triggered(value v_act, value v_fn) {
 
     QObject::connect(act, &QAction::triggered, [root](bool checked) {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_bool(checked));
+        value res = caml_callback_exn(*root, Val_bool(checked));
+        handle_callback_result(res);
     });
     connect_root_cleanup(act, root);
 
@@ -2071,9 +2239,10 @@ CAMLprim value caml_oqt6_qfiledialog_get_open_file_name(value v_parent, value v_
     if (result.isEmpty()) {
         CAMLreturn(Val_int(0)); // None
     }
-    value some = caml_alloc(1, 0);
+    CAMLlocal2(v_str, some);
     QByteArray utf8 = result.toUtf8();
-    Store_field(some, 0, caml_copy_string(utf8.constData()));
+    v_str = caml_copy_string(utf8.constData());
+    some = caml_alloc_some(v_str);
     CAMLreturn(some);
 }
 
@@ -2093,9 +2262,10 @@ CAMLprim value caml_oqt6_qfiledialog_get_save_file_name(value v_parent, value v_
     if (result.isEmpty()) {
         CAMLreturn(Val_int(0)); // None
     }
-    value some = caml_alloc(1, 0);
+    CAMLlocal2(v_str, some);
     QByteArray utf8 = result.toUtf8();
-    Store_field(some, 0, caml_copy_string(utf8.constData()));
+    v_str = caml_copy_string(utf8.constData());
+    some = caml_alloc_some(v_str);
     CAMLreturn(some);
 }
 
@@ -2114,9 +2284,10 @@ CAMLprim value caml_oqt6_qfiledialog_get_existing_directory(value v_parent, valu
     if (result.isEmpty()) {
         CAMLreturn(Val_int(0)); // None
     }
-    value some = caml_alloc(1, 0);
+    CAMLlocal2(v_str, some);
     QByteArray utf8 = result.toUtf8();
-    Store_field(some, 0, caml_copy_string(utf8.constData()));
+    v_str = caml_copy_string(utf8.constData());
+    some = caml_alloc_some(v_str);
     CAMLreturn(some);
 }
 
@@ -2787,7 +2958,8 @@ CAMLprim value caml_oqt6_qtableview_connect_clicked(value v_v, value v_cb) {
     QObject::connect(v, &QTableView::clicked, [root](const QModelIndex& index) {
         CamlDomainLockGuard guard;
         value args[2] = { Val_int(index.row()), Val_int(index.column()) };
-        caml_callbackN_exn(*root, 2, args);
+        value res = caml_callbackN_exn(*root, 2, args);
+        handle_callback_result(res);
     });
     connect_root_cleanup(v, root);
 
@@ -2804,7 +2976,8 @@ CAMLprim value caml_oqt6_qtableview_connect_double_clicked(value v_v, value v_cb
     QObject::connect(v, &QTableView::doubleClicked, [root](const QModelIndex& index) {
         CamlDomainLockGuard guard;
         value args[2] = { Val_int(index.row()), Val_int(index.column()) };
-        caml_callbackN_exn(*root, 2, args);
+        value res = caml_callbackN_exn(*root, 2, args);
+        handle_callback_result(res);
     });
     connect_root_cleanup(v, root);
 
@@ -2892,7 +3065,8 @@ CAMLprim value caml_oqt6_qtreeview_connect_clicked(value v_v, value v_cb) {
     QObject::connect(v, &QTreeView::clicked, [root](const QModelIndex& index) {
         CamlDomainLockGuard guard;
         value args[2] = { Val_int(index.row()), Val_int(index.column()) };
-        caml_callbackN_exn(*root, 2, args);
+        value res = caml_callbackN_exn(*root, 2, args);
+        handle_callback_result(res);
     });
     connect_root_cleanup(v, root);
 
@@ -2945,7 +3119,8 @@ CAMLprim value caml_oqt6_qlistview_connect_clicked(value v_v, value v_cb) {
 
     QObject::connect(v, &QListView::clicked, [root](const QModelIndex& index) {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_int(index.row()));
+        value res = caml_callback_exn(*root, Val_int(index.row()));
+        handle_callback_result(res);
     });
     connect_root_cleanup(v, root);
 
@@ -3032,7 +3207,8 @@ CAMLprim value caml_oqt6_qitemselectionmodel_connect_selection_changed(value v_s
 
     QObject::connect(s, &QItemSelectionModel::selectionChanged, [root](const QItemSelection&, const QItemSelection&) {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_unit);
+        value res = caml_callback_exn(*root, Val_unit);
+        handle_callback_result(res);
     });
     connect_root_cleanup(s, root);
 
@@ -3049,7 +3225,8 @@ CAMLprim value caml_oqt6_qitemselectionmodel_connect_current_changed(value v_s, 
     QObject::connect(s, &QItemSelectionModel::currentChanged, [root](const QModelIndex& current, const QModelIndex&) {
         CamlDomainLockGuard guard;
         value args[2] = { Val_int(current.row()), Val_int(current.column()) };
-        caml_callbackN_exn(*root, 2, args);
+        value res = caml_callbackN_exn(*root, 2, args);
+        handle_callback_result(res);
     });
     connect_root_cleanup(s, root);
 
@@ -3187,7 +3364,8 @@ CAMLprim value caml_oqt6_qtabwidget_connect_current_changed(value v_tw, value v_
 
     QObject::connect(tw, &QTabWidget::currentChanged, [root](int index) {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_int(index));
+        value res = caml_callback_exn(*root, Val_int(index));
+        handle_callback_result(res);
     });
     connect_root_cleanup(tw, root);
 
@@ -3203,7 +3381,8 @@ CAMLprim value caml_oqt6_qtabwidget_connect_tab_close_requested(value v_tw, valu
 
     QObject::connect(tw, &QTabWidget::tabCloseRequested, [root](int index) {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_int(index));
+        value res = caml_callback_exn(*root, Val_int(index));
+        handle_callback_result(res);
     });
     connect_root_cleanup(tw, root);
 
@@ -3264,7 +3443,8 @@ CAMLprim value caml_oqt6_qstackedwidget_connect_current_changed(value v_sw, valu
 
     QObject::connect(sw, &QStackedWidget::currentChanged, [root](int index) {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_int(index));
+        value res = caml_callback_exn(*root, Val_int(index));
+        handle_callback_result(res);
     });
     connect_root_cleanup(sw, root);
 
@@ -3363,8 +3543,9 @@ CAMLprim value caml_oqt6_qscrollarea_widget(value v_sa) {
     if (!w) {
         CAMLreturn(Val_int(0));
     }
-    value some = caml_alloc(1, 0);
-    Store_field(some, 0, alloc_qobject(w, false));
+    CAMLlocal2(v_w, some);
+    v_w = alloc_qobject(w, false);
+    some = caml_alloc_some(v_w);
     CAMLreturn(some);
 }
 
@@ -3442,7 +3623,8 @@ CAMLprim value caml_oqt6_qgroupbox_connect_toggled(value v_gb, value v_cb) {
 
     QObject::connect(gb, &QGroupBox::toggled, [root](bool on) {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_bool(on));
+        value res = caml_callback_exn(*root, Val_bool(on));
+        handle_callback_result(res);
     });
     connect_root_cleanup(gb, root);
 
@@ -3549,8 +3731,9 @@ CAMLprim value caml_oqt6_qdockwidget_widget(value v_dw) {
     if (!w) {
         CAMLreturn(Val_int(0));
     }
-    value some = caml_alloc(1, 0);
-    Store_field(some, 0, alloc_qobject(w, false));
+    CAMLlocal2(v_w, some);
+    v_w = alloc_qobject(w, false);
+    some = caml_alloc_some(v_w);
     CAMLreturn(some);
 }
 
@@ -3580,8 +3763,9 @@ CAMLprim value caml_oqt6_qcolordialog_get_color(value v_parent, value v_initial,
     if (!res.isValid()) {
         CAMLreturn(Val_int(0));
     }
-    value some = caml_alloc(1, 0);
-    Store_field(some, 0, alloc_color(res));
+    CAMLlocal2(v_c, some);
+    v_c = alloc_color(res);
+    some = caml_alloc_some(v_c);
     CAMLreturn(some);
 }
 
@@ -3601,8 +3785,9 @@ CAMLprim value caml_oqt6_qfontdialog_get_font(value v_parent, value v_initial, v
     if (!ok) {
         CAMLreturn(Val_int(0));
     }
-    value some = caml_alloc(1, 0);
-    Store_field(some, 0, alloc_font(res));
+    CAMLlocal2(v_f, some);
+    v_f = alloc_font(res);
+    some = caml_alloc_some(v_f);
     CAMLreturn(some);
 }
 
@@ -3623,9 +3808,10 @@ CAMLprim value caml_oqt6_qinputdialog_get_text(value v_parent, value v_title, va
     if (!ok) {
         CAMLreturn(Val_int(0));
     }
-    value some = caml_alloc(1, 0);
+    CAMLlocal2(v_str, some);
     QByteArray utf8 = res.toUtf8();
-    Store_field(some, 0, caml_copy_string(utf8.constData()));
+    v_str = caml_copy_string(utf8.constData());
+    some = caml_alloc_some(v_str);
     CAMLreturn(some);
 }
 
@@ -3650,8 +3836,8 @@ CAMLprim value caml_oqt6_qinputdialog_get_int(value v_parent, value v_title, val
     if (!ok) {
         CAMLreturn(Val_int(0));
     }
-    value some = caml_alloc(1, 0);
-    Store_field(some, 0, Val_int(res));
+    CAMLlocal1(some);
+    some = caml_alloc_some(Val_int(res));
     CAMLreturn(some);
 }
 
@@ -3686,9 +3872,10 @@ CAMLprim value caml_oqt6_qinputdialog_get_item(value v_parent, value v_title, va
     if (!ok) {
         CAMLreturn(Val_int(0));
     }
-    value some = caml_alloc(1, 0);
+    CAMLlocal2(v_str, some);
     QByteArray utf8 = res.toUtf8();
-    Store_field(some, 0, caml_copy_string(utf8.constData()));
+    v_str = caml_copy_string(utf8.constData());
+    some = caml_alloc_some(v_str);
     CAMLreturn(some);
 }
 
@@ -3756,8 +3943,9 @@ CAMLprim value caml_oqt6_qpixmap_load(value v_path) {
     if (!ok) {
         CAMLreturn(Val_int(0));
     }
-    value some = caml_alloc(1, 0);
-    Store_field(some, 0, alloc_pixmap(pm));
+    CAMLlocal2(v_pm, some);
+    v_pm = alloc_pixmap(pm);
+    some = caml_alloc_some(v_pm);
     CAMLreturn(some);
 }
 
@@ -3870,9 +4058,10 @@ CAMLprim value caml_oqt6_qmimedata_text(value v_m) {
     if (!m->hasText()) {
         CAMLreturn(Val_int(0));
     }
-    value some = caml_alloc(1, 0);
+    CAMLlocal2(v_str, some);
     QByteArray utf8 = m->text().toUtf8();
-    Store_field(some, 0, caml_copy_string(utf8.constData()));
+    v_str = caml_copy_string(utf8.constData());
+    some = caml_alloc_some(v_str);
     CAMLreturn(some);
 }
 
@@ -3891,14 +4080,15 @@ CAMLprim value caml_oqt6_qmimedata_has_urls(value v_m) {
 
 CAMLprim value caml_oqt6_qmimedata_urls(value v_m) {
     CAMLparam1(v_m);
-    CAMLlocal2(head, cons);
+    CAMLlocal3(head, cons, str);
     QMimeData* m = get_qobject<QMimeData>(v_m);
     QList<QUrl> urls = m->urls();
     head = Val_int(0);
     for (qsizetype i = urls.size() - 1; i >= 0; --i) {
-        cons = caml_alloc(2, 0);
         QByteArray utf8 = urls[i].toString().toUtf8();
-        Store_field(cons, 0, caml_copy_string(utf8.constData()));
+        str = caml_copy_string(utf8.constData());
+        cons = caml_alloc(2, 0);
+        Store_field(cons, 0, str);
         Store_field(cons, 1, head);
         head = cons;
     }
@@ -3931,9 +4121,10 @@ CAMLprim value caml_oqt6_qmimedata_html(value v_m) {
     if (!m->hasHtml()) {
         CAMLreturn(Val_int(0));
     }
-    value some = caml_alloc(1, 0);
+    CAMLlocal2(v_str, some);
     QByteArray utf8 = m->html().toUtf8();
-    Store_field(some, 0, caml_copy_string(utf8.constData()));
+    v_str = caml_copy_string(utf8.constData());
+    some = caml_alloc_some(v_str);
     CAMLreturn(some);
 }
 
@@ -3946,14 +4137,15 @@ CAMLprim value caml_oqt6_qmimedata_set_html(value v_m, value v_html) {
 
 CAMLprim value caml_oqt6_qmimedata_formats(value v_m) {
     CAMLparam1(v_m);
-    CAMLlocal2(head, cons);
+    CAMLlocal3(head, cons, str);
     QMimeData* m = get_qobject<QMimeData>(v_m);
     QStringList fmts = m->formats();
     head = Val_int(0);
     for (qsizetype i = fmts.size() - 1; i >= 0; --i) {
-        cons = caml_alloc(2, 0);
         QByteArray utf8 = fmts[i].toUtf8();
-        Store_field(cons, 0, caml_copy_string(utf8.constData()));
+        str = caml_copy_string(utf8.constData());
+        cons = caml_alloc(2, 0);
+        Store_field(cons, 0, str);
         Store_field(cons, 1, head);
         head = cons;
     }
@@ -3968,9 +4160,9 @@ CAMLprim value caml_oqt6_qmimedata_data(value v_m, value v_fmt) {
         CAMLreturn(Val_int(0));
     }
     QByteArray ba = m->data(fmt);
-    value some = caml_alloc(1, 0);
-    value str = caml_alloc_initialized_string((mlsize_t)ba.size(), ba.constData());
-    Store_field(some, 0, str);
+    CAMLlocal2(str, some);
+    str = caml_alloc_initialized_string((mlsize_t)ba.size(), ba.constData());
+    some = caml_alloc_some(str);
     CAMLreturn(some);
 }
 
@@ -4015,8 +4207,9 @@ CAMLprim value caml_oqt6_qdrag_mime_data(value v_drag) {
     if (!mime) {
         CAMLreturn(Val_int(0));
     }
-    value some = caml_alloc(1, 0);
-    Store_field(some, 0, alloc_qobject(mime, false));
+    CAMLlocal2(v_mime, some);
+    v_mime = alloc_qobject(mime, false);
+    some = caml_alloc_some(v_mime);
     CAMLreturn(some);
 }
 
@@ -4074,9 +4267,10 @@ CAMLprim value caml_oqt6_clipboard_text(value v_mode) {
         CAMLreturn(Val_int(0));
     }
     QString s = cb->text(mode);
-    value some = caml_alloc(1, 0);
+    CAMLlocal2(v_str, some);
     QByteArray utf8 = s.toUtf8();
-    Store_field(some, 0, caml_copy_string(utf8.constData()));
+    v_str = caml_copy_string(utf8.constData());
+    some = caml_alloc_some(v_str);
     CAMLreturn(some);
 }
 
@@ -4108,8 +4302,9 @@ CAMLprim value caml_oqt6_clipboard_pixmap(value v_mode) {
     if (p.isNull()) {
         CAMLreturn(Val_int(0));
     }
-    value some = caml_alloc(1, 0);
-    Store_field(some, 0, alloc_pixmap(p));
+    CAMLlocal2(v_pm, some);
+    v_pm = alloc_pixmap(p);
+    some = caml_alloc_some(v_pm);
     CAMLreturn(some);
 }
 
@@ -4141,8 +4336,9 @@ CAMLprim value caml_oqt6_clipboard_mime_data(value v_mode) {
     if (!m) {
         CAMLreturn(Val_int(0));
     }
-    value some = caml_alloc(1, 0);
-    Store_field(some, 0, alloc_qobject(const_cast<QMimeData*>(m), false));
+    CAMLlocal2(v_mime, some);
+    v_mime = alloc_qobject(const_cast<QMimeData*>(m), false);
+    some = caml_alloc_some(v_mime);
     CAMLreturn(some);
 }
 
@@ -4187,7 +4383,8 @@ CAMLprim value caml_oqt6_clipboard_connect_changed(value v_cb) {
 
     QObject::connect(cb, &QClipboard::dataChanged, [root]() {
         CamlDomainLockGuard guard;
-        caml_callback_exn(*root, Val_unit);
+        value res = caml_callback_exn(*root, Val_unit);
+        handle_callback_result(res);
     });
     connect_root_cleanup(cb, root);
 

@@ -11,12 +11,14 @@ external qobject_delete : 'a t -> unit = "caml_oqt6_qobject_delete"
 external qobject_is_valid : 'a t -> bool = "caml_oqt6_qobject_is_valid"
 external qobject_set_object_name : 'a t -> string -> unit = "caml_oqt6_qobject_set_object_name"
 external qobject_object_name : 'a t -> string = "caml_oqt6_qobject_object_name"
+external qobject_connect_destroyed : 'a t -> (unit -> unit) -> unit = "caml_oqt6_qobject_connect_destroyed"
 
 module Object = struct
   let delete = qobject_delete
   let is_valid = qobject_is_valid
   let set_object_name = qobject_set_object_name
   let object_name = qobject_object_name
+  let on_destroyed = qobject_connect_destroyed
 end
 
 external qtimer_single_shot : int -> (unit -> unit) -> unit = "caml_oqt6_qtimer_single_shot"

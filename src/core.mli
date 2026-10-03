@@ -14,6 +14,7 @@ module Object : sig
   val is_valid : [> `QObject ] t -> bool
   val set_object_name : [> `QObject ] t -> string -> unit
   val object_name : [> `QObject ] t -> string
+  val on_destroyed : [> `QObject ] t -> (unit -> unit) -> unit
 end
 
 module Timer : sig

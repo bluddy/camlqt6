@@ -8,6 +8,7 @@
 (library
  (name camlqt6)
  (public_name camlqt6)
+ (libraries threads)
  (modules core gui widgets dsl camlqt6)
  (foreign_stubs
   (language cxx)

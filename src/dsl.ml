@@ -1,42 +1,109 @@
 (** OQt6 DSL: Declarative and Reactive UI Framework for Qt 6 *)
 
 module State = struct
+  type subscription = int
+
+  type 'a listener = {
+    id : int;
+    cb : 'a -> unit;
+  }
+
   type 'a t = {
+    mutex : Mutex.t;
     mutable value : 'a;
-    mutable listeners : ('a -> unit) list;
+    mutable listeners : 'a listener list;
+    mutable next_id : int;
   }
 
   let create initial = {
+    mutex = Mutex.create ();
     value = initial;
     listeners = [];
+    next_id = 0;
   }
 
-  let get s = s.value
+  let get s =
+    Mutex.lock s.mutex;
+    let v = s.value in
+    Mutex.unlock s.mutex;
+    v
 
   let set s new_val =
-    if s.value <> new_val then begin
-      s.value <- new_val;
-      List.iter (fun f -> f new_val) s.listeners
-    end
+    let to_notify =
+      Mutex.lock s.mutex;
+      if s.value <> new_val then begin
+        s.value <- new_val;
+        let cbs = List.map (fun l -> l.cb) s.listeners in
+        Mutex.unlock s.mutex;
+        Some cbs
+      end else begin
+        Mutex.unlock s.mutex;
+        None
+      end
+    in
+    match to_notify with
+    | Some cbs -> List.iter (fun f -> f new_val) cbs
+    | None -> ()
 
-  let update s f = set s (f s.value)
+  let update s f =
+    let to_notify, new_val =
+      Mutex.lock s.mutex;
+      let v = f s.value in
+      if s.value <> v then begin
+        s.value <- v;
+        let cbs = List.map (fun l -> l.cb) s.listeners in
+        Mutex.unlock s.mutex;
+        (Some cbs, v)
+      end else begin
+        Mutex.unlock s.mutex;
+        (None, v)
+      end
+    in
+    match to_notify with
+    | Some cbs -> List.iter (fun cb -> cb new_val) cbs
+    | None -> ()
+
+  let subscribe_handle s f =
+    Mutex.lock s.mutex;
+    let id = s.next_id in
+    s.next_id <- s.next_id + 1;
+    s.listeners <- { id; cb = f } :: s.listeners;
+    let cur = s.value in
+    Mutex.unlock s.mutex;
+    f cur;
+    id
+
+  let unsubscribe s id =
+    Mutex.lock s.mutex;
+    s.listeners <- List.filter (fun l -> l.id <> id) s.listeners;
+    Mutex.unlock s.mutex
 
   let subscribe s f =
-    s.listeners <- f :: s.listeners;
-    f s.value
+    let _ = subscribe_handle s f in
+    ()
 
   let map f src =
-    let derived = create (f src.value) in
-    subscribe src (fun v -> set derived (f v));
+    let derived = create (f (get src)) in
+    let _ = subscribe_handle src (fun v -> set derived (f v)) in
     derived
 
   let map2 f s1 s2 =
-    let derived = create (f s1.value s2.value) in
-    let update () = set derived (f s1.value s2.value) in
-    subscribe s1 (fun _ -> update ());
-    subscribe s2 (fun _ -> update ());
+    let derived = create (f (get s1) (get s2)) in
+    let update () = set derived (f (get s1) (get s2)) in
+    let _ = subscribe_handle s1 (fun _ -> update ()) in
+    let _ = subscribe_handle s2 (fun _ -> update ()) in
     derived
 end
+
+let bind_ui (type a) (w : a Core.t) (s : 'b State.t) (update : a Core.t -> 'b -> unit) =
+  let obj : Core.qobject Core.t = Core.cast w in
+  let sub = State.subscribe_handle s (fun v ->
+    Widgets.App.run_on_ui_thread (fun () ->
+      if Core.Object.is_valid obj then
+        update w v
+    )
+  ) in
+  Core.Object.on_destroyed obj (fun () -> State.unsubscribe s sub)
 
 type node =
   | Widget of (parent:Widgets.qwidget Core.t option -> Widgets.qwidget Core.t)
@@ -146,9 +213,8 @@ let group ?title ?(checkable = false) ?checked child_node =
     let is_chk = checkable || Option.is_some checked in
     if is_chk then Widgets.GroupBox.set_checkable gb true;
     Option.iter (fun s ->
-      Widgets.GroupBox.set_checked gb (State.get s);
-      State.subscribe s (fun b ->
-        if Widgets.GroupBox.is_checked gb <> b then Widgets.GroupBox.set_checked gb b);
+      bind_ui gb s (fun g b ->
+        if Widgets.GroupBox.is_checked g <> b then Widgets.GroupBox.set_checked g b);
       Widgets.GroupBox.on_toggled gb (fun b ->
         if State.get s <> b then State.set s b)
     ) checked;
@@ -178,9 +244,9 @@ let match_s state pages =
       | _ -> ()
     ) pages;
     let count = Widgets.StackedWidget.count sw in
-    State.subscribe state (fun idx ->
+    bind_ui sw state (fun w idx ->
       if idx >= 0 && idx < count then
-        Widgets.StackedWidget.set_current_index sw idx
+        Widgets.StackedWidget.set_current_index w idx
     );
     sw_w
   )
@@ -202,7 +268,7 @@ let label_s ?style s =
   Widget (fun ~parent ->
     let lbl = Widgets.Label.create ~text:(State.get s) ?parent () in
     Option.iter (Widgets.Widget.set_style_sheet lbl) style;
-    State.subscribe s (Widgets.Label.set_text lbl);
+    bind_ui lbl s Widgets.Label.set_text;
     Widgets.Widget.as_widget lbl
   )
 
@@ -211,7 +277,7 @@ let button ?icon ?style ?enabled_s ?on_click text =
     let btn = Widgets.Button.create ~text ?parent () in
     Option.iter (Widgets.Button.set_icon btn) icon;
     Option.iter (Widgets.Widget.set_style_sheet btn) style;
-    Option.iter (fun s -> State.subscribe s (Widgets.Widget.set_enabled btn)) enabled_s;
+    Option.iter (fun s -> bind_ui btn s Widgets.Widget.set_enabled) enabled_s;
     Option.iter (Widgets.Button.on_clicked btn) on_click;
     Widgets.Widget.as_widget btn
   )
@@ -221,9 +287,9 @@ let button_s ?icon ?style ?enabled_s ?on_click s =
     let btn = Widgets.Button.create ~text:(State.get s) ?parent () in
     Option.iter (Widgets.Button.set_icon btn) icon;
     Option.iter (Widgets.Widget.set_style_sheet btn) style;
-    Option.iter (fun es -> State.subscribe es (Widgets.Widget.set_enabled btn)) enabled_s;
+    Option.iter (fun es -> bind_ui btn es Widgets.Widget.set_enabled) enabled_s;
     Option.iter (Widgets.Button.on_clicked btn) on_click;
-    State.subscribe s (Widgets.Button.set_text btn);
+    bind_ui btn s Widgets.Button.set_text;
     Widgets.Widget.as_widget btn
   )
 
@@ -231,9 +297,8 @@ let check_box ?checked ?on_toggled text =
   Widget (fun ~parent ->
     let cb = Widgets.CheckBox.create ~text ?parent () in
     Option.iter (fun s ->
-      Widgets.CheckBox.set_checked cb (State.get s);
-      State.subscribe s (fun b ->
-        if Widgets.CheckBox.is_checked cb <> b then Widgets.CheckBox.set_checked cb b);
+      bind_ui cb s (fun w b ->
+        if Widgets.CheckBox.is_checked w <> b then Widgets.CheckBox.set_checked w b);
       Widgets.CheckBox.on_toggled cb (fun b ->
         if State.get s <> b then State.set s b)
     ) checked;
@@ -245,9 +310,8 @@ let radio_button ?checked ?on_toggled text =
   Widget (fun ~parent ->
     let rb = Widgets.RadioButton.create ~text ?parent () in
     Option.iter (fun s ->
-      Widgets.RadioButton.set_checked rb (State.get s);
-      State.subscribe s (fun b ->
-        if Widgets.RadioButton.is_checked rb <> b then Widgets.RadioButton.set_checked rb b);
+      bind_ui rb s (fun w b ->
+        if Widgets.RadioButton.is_checked w <> b then Widgets.RadioButton.set_checked w b);
       Widgets.RadioButton.on_toggled rb (fun b ->
         if State.get s <> b then State.set s b)
     ) checked;
@@ -261,8 +325,8 @@ let line_edit ?placeholder ?text ?on_change () =
     let edit = Widgets.LineEdit.create ?text:init_text ?parent () in
     Option.iter (Widgets.LineEdit.set_placeholder_text edit) placeholder;
     Option.iter (fun s ->
-      State.subscribe s (fun v ->
-        if Widgets.LineEdit.text edit <> v then Widgets.LineEdit.set_text edit v);
+      bind_ui edit s (fun w v ->
+        if Widgets.LineEdit.text w <> v then Widgets.LineEdit.set_text w v);
       Widgets.LineEdit.on_text_changed edit (fun v ->
         if State.get s <> v then State.set s v)
     ) text;
@@ -277,8 +341,8 @@ let text_edit ?(read_only = false) ?style ?text ?on_change () =
     Widgets.TextEdit.set_read_only te read_only;
     Option.iter (Widgets.Widget.set_style_sheet te) style;
     Option.iter (fun s ->
-      State.subscribe s (fun v ->
-        if Widgets.TextEdit.to_plain_text te <> v then Widgets.TextEdit.set_plain_text te v);
+      bind_ui te s (fun w v ->
+        if Widgets.TextEdit.to_plain_text w <> v then Widgets.TextEdit.set_plain_text w v);
       Widgets.TextEdit.on_text_changed te (fun () ->
         let v = Widgets.TextEdit.to_plain_text te in
         if State.get s <> v then State.set s v)
@@ -292,9 +356,8 @@ let slider ?(min = 0) ?(max = 100) ?orientation ?value ?on_change () =
     let s = Widgets.Slider.create ?orientation ?parent () in
     Widgets.Slider.set_range s ~min ~max;
     Option.iter (fun st ->
-      Widgets.Slider.set_value s (State.get st);
-      State.subscribe st (fun v ->
-        if Widgets.Slider.value s <> v then Widgets.Slider.set_value s v);
+      bind_ui s st (fun w v ->
+        if Widgets.Slider.value w <> v then Widgets.Slider.set_value w v);
       Widgets.Slider.on_value_changed s (fun v ->
         if State.get st <> v then State.set st v)
     ) value;
@@ -309,9 +372,8 @@ let spin_box ?(min = 0) ?(max = 100) ?prefix ?suffix ?value ?on_change () =
     Option.iter (Widgets.SpinBox.set_prefix sb) prefix;
     Option.iter (Widgets.SpinBox.set_suffix sb) suffix;
     Option.iter (fun st ->
-      Widgets.SpinBox.set_value sb (State.get st);
-      State.subscribe st (fun v ->
-        if Widgets.SpinBox.value sb <> v then Widgets.SpinBox.set_value sb v);
+      bind_ui sb st (fun w v ->
+        if Widgets.SpinBox.value w <> v then Widgets.SpinBox.set_value w v);
       Widgets.SpinBox.on_value_changed sb (fun v ->
         if State.get st <> v then State.set st v)
     ) value;
@@ -325,8 +387,7 @@ let progress_bar ?(min = 0) ?(max = 100) ?value ?format () =
     Widgets.ProgressBar.set_range pb ~min ~max;
     Option.iter (Widgets.ProgressBar.set_format pb) format;
     Option.iter (fun st ->
-      Widgets.ProgressBar.set_value pb (State.get st);
-      State.subscribe st (Widgets.ProgressBar.set_value pb)
+      bind_ui pb st Widgets.ProgressBar.set_value
     ) value;
     Widgets.Widget.as_widget pb
   )
@@ -336,9 +397,8 @@ let combo_box ~items ?current ?on_change () =
     let cb = Widgets.ComboBox.create ?parent () in
     Widgets.ComboBox.add_items cb items;
     Option.iter (fun st ->
-      Widgets.ComboBox.set_current_index cb (State.get st);
-      State.subscribe st (fun idx ->
-        if Widgets.ComboBox.current_index cb <> idx then Widgets.ComboBox.set_current_index cb idx);
+      bind_ui cb st (fun w idx ->
+        if Widgets.ComboBox.current_index w <> idx then Widgets.ComboBox.set_current_index w idx);
       Widgets.ComboBox.on_current_index_changed cb (fun idx ->
         if State.get st <> idx then State.set st idx)
     ) current;
@@ -378,7 +438,7 @@ let window ?title ?width ?height ?status_bar child_node =
      | _ -> ());
     Option.iter (fun sb_state ->
       let sb = Widgets.MainWindow.status_bar win in
-      State.subscribe sb_state (Widgets.StatusBar.show_message sb)
+      bind_ui sb sb_state (fun s msg -> Widgets.StatusBar.show_message s msg)
     ) status_bar;
     (match child_node with
      | Widget f ->

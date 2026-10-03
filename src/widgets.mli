@@ -61,6 +61,10 @@ module App : sig
   val create : ?args:string array -> unit -> qapplication Core.t
   val exec : qapplication Core.t -> int
   val process_events : unit -> unit
+  val process_events_wait : ?timeout_ms:int -> unit -> unit
+  val is_ui_thread : unit -> bool
+  val post_task : (unit -> unit) -> unit
+  val run_on_ui_thread : (unit -> unit) -> unit
   val quit : unit -> unit
 end
 

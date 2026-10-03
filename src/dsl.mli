@@ -5,6 +5,9 @@ module State : sig
   (** A reactive value container that notifies subscribers when modified. *)
   type 'a t
 
+  (** A subscription handle used to cancel subscriptions. *)
+  type subscription
+
   (** [create initial] creates a new reactive state with the given initial value. *)
   val create : 'a -> 'a t
 
@@ -16,6 +19,13 @@ module State : sig
 
   (** [update state f] updates the state by applying [f] to the current value. *)
   val update : 'a t -> ('a -> 'a) -> unit
+
+  (** [subscribe_handle state f] registers a listener [f] and returns a subscription token.
+      [f] is called immediately with the current value and subsequently whenever the value changes. *)
+  val subscribe_handle : 'a t -> ('a -> unit) -> subscription
+
+  (** [unsubscribe state subscription] removes the specified listener. *)
+  val unsubscribe : 'a t -> subscription -> unit
 
   (** [subscribe state f] registers a listener [f]. [f] is called immediately with the current value
       and subsequently whenever the value changes. *)

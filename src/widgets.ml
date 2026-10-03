@@ -87,12 +87,21 @@ type qprogress_dialog = [ qdialog | `QProgressDialog ]
 external qapp_create : string array option -> qapplication Core.t = "caml_oqt6_qapplication_create"
 external qapp_exec : 'a Core.t -> int = "caml_oqt6_qapplication_exec"
 external qapp_process_events : unit -> unit = "caml_oqt6_qapplication_process_events"
+external qapp_process_events_wait : int option -> unit = "caml_oqt6_qapplication_process_events_wait"
+external qapp_is_ui_thread : unit -> bool = "caml_oqt6_qapplication_is_ui_thread"
+external qapp_post_task : (unit -> unit) -> unit = "caml_oqt6_qapplication_post_task"
 external qapp_quit : unit -> unit = "caml_oqt6_qapplication_quit"
 
 module App = struct
   let create ?args () = qapp_create args
   let exec = qapp_exec
   let process_events = qapp_process_events
+  let process_events_wait ?timeout_ms () = qapp_process_events_wait timeout_ms
+  let is_ui_thread = qapp_is_ui_thread
+  let post_task = qapp_post_task
+  let run_on_ui_thread f =
+    if qapp_is_ui_thread () then f ()
+    else qapp_post_task f
   let quit = qapp_quit
 end
 

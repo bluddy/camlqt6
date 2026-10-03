@@ -626,4 +626,73 @@ let () =
   assert (not (Object.is_valid temp_parent));
   assert (not (Object.is_valid temp_child));
 
+  (* 40. Test QObject custom operations: comparison and hashing *)
+  print_endline "Testing QObject custom operations (compare, equality, hash)...";
+  let w_a = Widget.create () in
+  let w_b = Widget.create () in
+  assert (w_a = w_a);
+  assert (w_a <> w_b);
+  assert (compare w_a w_a = 0);
+  assert (compare w_a w_b <> 0);
+
+  let tbl = Hashtbl.create 8 in
+  Hashtbl.add tbl w_a "widget_a";
+  Hashtbl.add tbl w_b "widget_b";
+  assert (Hashtbl.find tbl w_a = "widget_a");
+  assert (Hashtbl.find tbl w_b = "widget_b");
+  Object.delete w_a;
+  Object.delete w_b;
+
+  (* 41. Test Object.on_destroyed callback *)
+  print_endline "Testing Object.on_destroyed...";
+  let w_destroyed = Widget.create () in
+  let destroyed_fired = ref false in
+  Object.on_destroyed w_destroyed (fun () -> destroyed_fired := true);
+  Object.delete w_destroyed;
+  assert (!destroyed_fired);
+
+  (* 42. Test Dsl.State reactivity, mapping, and unsubscription *)
+  print_endline "Testing Dsl.State reactivity and subscription lifecycle...";
+  let st_val = Dsl.State.create 10 in
+  assert (Dsl.State.get st_val = 10);
+  let derived = Dsl.State.map (fun x -> x * 2) st_val in
+  assert (Dsl.State.get derived = 20);
+
+  let log = ref [] in
+  let sub = Dsl.State.subscribe_handle st_val (fun v -> log := v :: !log) in
+  assert (!log = [10]);
+
+  Dsl.State.set st_val 20;
+  assert (Dsl.State.get st_val = 20);
+  assert (Dsl.State.get derived = 40);
+  assert (!log = [20; 10]);
+
+  Dsl.State.unsubscribe st_val sub;
+  Dsl.State.set st_val 30;
+  assert (Dsl.State.get st_val = 30);
+  assert (Dsl.State.get derived = 60);
+  assert (!log = [20; 10]); (* No new entries after unsubscription *)
+
+  (* 43. Test Multicore Domain safety with App.post_task and App.run_on_ui_thread *)
+  print_endline "Testing OCaml 5 Multicore Domain.spawn with App UI dispatch...";
+  let domain_task_done = ref false in
+  let domain_received_val = ref 0 in
+  let shared_state = Dsl.State.create 0 in
+
+  let d = Domain.spawn (fun () ->
+    (* Update State from worker domain *)
+    Dsl.State.set shared_state 42;
+    (* Post task from worker domain to UI thread *)
+    App.run_on_ui_thread (fun () ->
+      domain_received_val := Dsl.State.get shared_state;
+      domain_task_done := true
+    )
+  ) in
+  Domain.join d;
+
+  (* Process posted events on UI thread *)
+  App.process_events ();
+  assert (!domain_task_done);
+  assert (!domain_received_val = 42);
+
   print_endline "=== All CamlQt6 Tests Passed Successfully! ==="

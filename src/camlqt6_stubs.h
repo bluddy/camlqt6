@@ -8,6 +8,7 @@
 #ifdef __cplusplus
 #include <QPointer>
 #include <QObject>
+#include <QThread>
 #endif
 
 #define CAML_NAME_SPACE
@@ -22,6 +23,7 @@ extern "C" {
 #include <caml/callback.h>
 #include <caml/fail.h>
 #include <caml/threads.h>
+#include <caml/printexc.h>
 
 #ifdef __cplusplus
 }
@@ -44,10 +46,25 @@ value alloc_qobject(QObject* obj, bool owned = true);
 void mark_parented(value v);
 
 extern thread_local int thread_domain_lock_depth;
+extern thread_local bool thread_is_registered;
+
+inline void handle_callback_result(value res) {
+    if (Is_exception_result(res)) {
+        value exn = Extract_exception(res);
+        char* msg = caml_format_exception(exn);
+        fprintf(stderr, "[CamlQt6 Callback Exception]: %s\n", msg);
+        fflush(stderr);
+        free(msg);
+    }
+}
 
 struct CamlDomainLockGuard {
     bool need_release;
     CamlDomainLockGuard() : need_release(false) {
+        if (!thread_is_registered) {
+            caml_c_thread_register();
+            thread_is_registered = true;
+        }
         if (thread_domain_lock_depth == 0) {
             caml_acquire_runtime_system();
             thread_domain_lock_depth++;
