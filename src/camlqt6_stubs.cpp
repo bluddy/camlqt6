@@ -2969,13 +2969,16 @@ CAMLprim value caml_oqt6_qpainter_draw_text(value v_p, value v_x, value v_y, val
 }
 
 /* int -> int -> int -> int -> int */
-static void read_points(value v, QPolygon* out) {
-    CAMLparam1(v);
-    CAMLlocal3(cur, head, tail);
+/* Walk an OCaml list of points into a QPolygonF.
+
+   These helpers deliberately use no CAMLparam/CAMLlocal. They allocate only
+   through Qt's allocator, never the OCaml heap, and a CAMLparam with no
+   matching CAMLreturn/CAMLdrop leaves the local-roots frame unbalanced, which
+   corrupts the caller's frame. The incoming values are already rooted by the
+   caller's CAMLparamN. */
+static void read_points_i(value v, QPolygon* out) {
     out->clear();
-    /* head is the list of (x, y) pairs; each pair is a 2-field block. Walked with
-       an explicit tag check so a malformed list cannot loop or read wild memory. */
-    head = v;
+    value head = v;
     while (Is_block(head) && Tag_val(head) == 0) {
         value pair = Field(head, 0);
         if (Is_block(pair) && Wosize_val(pair) >= 2) {
@@ -2985,14 +2988,14 @@ static void read_points(value v, QPolygon* out) {
     }
 }
 
-static void read_floats(value v, QPolygonF* out) {
-    CAMLparam1(v);
-    CAMLlocal2(head, item);
+static void read_points_f(value v, QPolygonF* out) {
     out->clear();
-    head = v;
+    value head = v;
     while (Is_block(head) && Tag_val(head) == 0) {
-        item = Field(head, 0);
-        out->append(QPointF(Double_val(Field(item, 0)), Double_val(Field(item, 1))));
+        value pair = Field(head, 0);
+        if (Is_block(pair) && Wosize_val(pair) >= 2) {
+            out->append(QPointF(Double_val(Field(pair, 0)), Double_val(Field(pair, 1))));
+        }
         head = Field(head, 1);
     }
 }
@@ -3000,7 +3003,7 @@ static void read_floats(value v, QPolygonF* out) {
 CAMLprim value caml_oqt6_qpainter_draw_polyline(value v_p, value v_points) {
     CAMLparam2(v_p, v_points);
     QPolygonF poly;
-    read_floats(Field(v_points, 0), &poly);
+    read_points_f(v_points, &poly);
     get_painter(v_p)->drawPolyline(poly);
     CAMLreturn(Val_unit);
 }
@@ -3008,7 +3011,7 @@ CAMLprim value caml_oqt6_qpainter_draw_polyline(value v_p, value v_points) {
 CAMLprim value caml_oqt6_qpainter_draw_polygon(value v_p, value v_points) {
     CAMLparam2(v_p, v_points);
     QPolygonF poly;
-    read_floats(Field(v_points, 0), &poly);
+    read_points_f(v_points, &poly);
     get_painter(v_p)->drawPolygon(poly);
     CAMLreturn(Val_unit);
 }
