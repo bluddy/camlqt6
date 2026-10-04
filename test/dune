@@ -1,3 +1,12 @@
 (test
  (name test_camlqt6)
+ (modules test_camlqt6 harness)
  (libraries camlqt6))
+
+; TEST-12: set the platform here rather than relying only on -platform offscreen
+; in argv, so anything Qt reads from the environment (QClipboard, QDrag) also
+; sees it. argv is still passed by the test itself, as belt and braces.
+(env
+ (_
+  (env-vars
+   (QT_QPA_PLATFORM offscreen))))
