@@ -2,12 +2,22 @@
 opam-version: "2.0"
 version: "0.1.0"
 synopsis: "Qt 6 bindings for OCaml"
-description:
-  "Cross-platform Qt 6 bindings for OCaml supporting Core, Gui, and Widgets"
+description: """
+Cross-platform Qt 6 bindings for OCaml supporting Core, Gui, and Widgets.
+
+Provides an imperative widget API, a zero-copy functional QAbstractItemModel
+bridge, a QPainter/custom-painting canvas, and a declarative reactive DSL, with
+QPointer-based lifetime tracking and OCaml 5 domain-lock safety."""
+maintainer: ["CamlQt6 contributors"]
+authors: ["CamlQt6 contributors"]
+license: "MIT"
+homepage: "https://github.com/camlqt6/camlqt6"
+bug-reports: "https://github.com/camlqt6/camlqt6/issues"
 depends: [
-  "ocaml" {>= "5.0.0"}
   "dune" {>= "3.13"}
+  "ocaml" {>= "5.0.0"}
   "dune-configurator"
+  "pkg-config"
   "odoc" {with-doc}
 ]
 build: [
@@ -25,12 +35,18 @@ build: [
   ]
 ]
 depexts: [
-  ["qt6-base-dev" "qt6-base-dev-tools"] {os-distribution = "debian"}
-  ["qt6-base-dev" "qt6-base-dev-tools"] {os-distribution = "ubuntu"}
-  ["qt6-qtbase-devel"] {os-distribution = "fedora"}
-  ["qt6-qtbase-devel"] {os-distribution = "centos"}
-  ["qt6-qtbase-devel"] {os-distribution = "rhel"}
-  ["qt6-base"] {os-distribution = "arch"}
-  ["qt@6"] {os-distribution = "homebrew"}
-  ["mingw-w64-ucrt-x86_64-qt6-base"] {os = "win32" & os-distribution = "msys2"}
+  # os-family, not os-distribution: the latter does not match derivatives
+  # (Linux Mint, Pop!_OS, Kali, ...), which would leave them with no Qt hint.
+  ["qt6-base-dev" "qt6-base-dev-tools"] {os-family = "debian"}
+  ["qt6-qtbase-devel"] {os-family = "fedora"}
+  ["qt6-qtbase-devel"] {os-family = "rhel"}
+  ["qt6-base"] {os-family = "arch"}
+  ["qt6-base-devel"] {os-family = "suse"}
+  # Homebrew. Keyed on os, not os-distribution = "homebrew": that only matches an
+  # opam installed *by* Homebrew, not a Mac whose opam came from opam-init.
+  ["qt@6" "pkg-config"] {os = "macos"}
+  # MSYS2 / MinGW-w64 on Windows.
+  ["mingw-w64-ucrt-x86_64-qt6-base" "mingw-w64-ucrt-x86_64-pkgconf"] {os = "win32" & os-distribution = "msys2"}
+  # MSVC / official Qt installer on Windows: Qt has no opam dependency to name,
+  # so config/discover.ml locates it from QTDIR or C:\Qt\<ver>\<toolchain>.
 ]

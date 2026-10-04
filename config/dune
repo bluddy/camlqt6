@@ -1,4 +1,4 @@
 (executable
  (name discover)
- (modules discover)
+ (modes exe)
  (libraries dune-configurator unix))

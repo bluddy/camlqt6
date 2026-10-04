@@ -1,13 +1,24 @@
 (rule
  (targets cxxflags.sexp clibs.sexp)
  (deps
-  (:discover ../config/discover.exe))
+  (:discover ../config/discover.exe)
+  ;; Without these, the discovered flags are cached across environment changes:
+  ;; setting QTDIR or CAMLQT6_CFLAGS did nothing until `dune clean`.
+  (env_var QTDIR)
+  (env_var Qt6_DIR)
+  (env_var CAMLQT6_CFLAGS)
+  (env_var CAMLQT6_LIBS)
+  (env_var CAMLQT6_CXXSTD))
  (action
   (run %{discover} -cxxflags cxxflags.sexp -clibs clibs.sexp)))
 
 (library
  (name camlqt6)
  (public_name camlqt6)
+ ;; Not dead weight despite being a no-op stub in OCaml 5: the C++ stubs
+ ;; reference caml_c_thread_register, which this toolchain resolves from the
+ ;; threads library. Dropping it fails at link time with
+ ;; "Cannot resolve symbols: caml_c_thread_register".
  (libraries threads)
  (modules core gui widgets dsl camlqt6)
  (foreign_stubs

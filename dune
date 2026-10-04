@@ -1,0 +1,10 @@
+; Warning policy for the whole project (inherited by subdirectories).
+;
+; -warn-error is deliberately *not* enabled: the C++ stubs layer and the
+; dune-configurator script cannot avoid a few warnings, and promoting them to
+; errors here would only get in the way of the build. Enable it in CI if you
+; want the stricter gate.
+(env
+ (dev
+  (flags
+   (:standard -w +a-4-9-40-41-42-44-45-48-70 -warn-error -a))))
