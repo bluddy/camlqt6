@@ -683,7 +683,7 @@ The codebase already has the correct idiom at `:4164` (`caml_alloc_initialized_s
 
 ## 6.1 Wave 5: what shipped and what was deliberately deferred
 
-Shipped in Wave 5 (all verified, 224 checks green):
+Shipped in Wave 5 (all verified, 223 checks green):
 
 | Item | Summary |
 | :--- | :--- |
@@ -932,6 +932,23 @@ with no synchronisation. `process_events` runs *after* `Domain.join` (`:691`), s
 ### [x] TEST-12 No `QT_QPA_PLATFORM=offscreen` in `test/dune`
 Relies on `-platform offscreen` in argv (`test_camlqt6.ml:7`), which does not apply to anything Qt
 reads from the environment. On a box with no offscreen plugin you get a Qt abort with no hint.
+
+### [x] TEST-13 The new polygon primitives were never actually executed
+Found during the Wave 6 test commit, not during Wave 5. The graphics test created its window but
+never showed it, and Qt delivers no paint events to an unshown widget, so the whole drawing body
+skipped. Showing the window and driving the loop directly exposed two latent faults that had shipped
+in `504fbc4`:
+
+- `read_points_i` / `read_points_f` opened a local-roots frame with `CAMLparam`/`CAMLlocal` and
+  returned with a plain `}`, with no `CAMLreturn`/`CAMLdrop`. Unbalanced frames corrupt the caller.
+  Fixed in `f481458`: the helpers allocate only through Qt's allocator, so they need no frame.
+- Both callers did `Field(v_points, 0)` before walking the list. `[]` is an immediate, so
+  `Painter.draw_polyline painter []` read address 8 and faulted. Fixed in `f481458` by passing the
+  list straight through, which is also what the helper already expected.
+
+The lesson generalises: an `on_paint` body is only tested once something actually paints. Any
+future test that constructs a canvas must show the window, or it is asserting nothing about the
+drawing code.
 
 ---
 
