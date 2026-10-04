@@ -40,6 +40,27 @@ struct OCamlQObject {
     bool owned;
 };
 
+/* The custom_operations pointer of a custom block sits immediately below its data.
+   Used to reject cross-type confusion (e.g. a Color.t passed where a Pen.t is
+   expected) before the payload is reinterpreted. */
+#define Custom_operations_val(v) \
+    (*((struct custom_operations**)((char*)Data_custom_val(v) - sizeof(value))))
+
+extern const struct custom_operations camlqt6_qobject_ops;
+extern const struct custom_operations camlqt6_qcolor_ops;
+extern const struct custom_operations camlqt6_qfont_ops;
+extern const struct custom_operations camlqt6_qpen_ops;
+extern const struct custom_operations camlqt6_qbrush_ops;
+extern const struct custom_operations camlqt6_qpixmap_ops;
+extern const struct custom_operations camlqt6_qicon_ops;
+extern const struct custom_operations camlqt6_qpainter_ops;
+
+inline void check_custom(value v, const struct custom_operations* ops, const char* name) {
+    if (!Is_block(v) || Custom_operations_val(v) != ops) {
+        caml_invalid_argument(name);
+    }
+}
+
 #define QObject_holder(v) ((OCamlQObject*)Data_custom_val(v))
 
 value alloc_qobject(QObject* obj, bool owned = true);
@@ -48,6 +69,14 @@ void mark_parented(value v);
 extern thread_local int thread_domain_lock_depth;
 extern thread_local bool thread_is_registered;
 
+/* thread_domain_lock_depth is a per-thread count of nested references this
+   thread holds on the OCaml 5 runtime system:
+     > 0  an OCaml -> C++ call is in progress on this thread, so the runtime
+           system is already held by the calling OCaml frame, and a nested
+           CamlDomainLockGuard must not re-acquire it;
+     == 0 we are either inside a Qt -> OCaml callback or inside a
+           CamlBlockingSection, so the runtime system must be acquired to touch
+           OCaml state. */
 inline void handle_callback_result(value res) {
     if (Is_exception_result(res)) {
         value exn = Extract_exception(res);
@@ -58,6 +87,28 @@ inline void handle_callback_result(value res) {
     }
 }
 
+/* OCaml 5's mlvalues.h does not expose Val_max_int, so define the immediates'
+   bounds here: values at or below Max_int are integers, values above it are
+   pointers. Needed to tell an unboxed OCaml int from a block pointer. */
+#define Camlqt6_Max_long (((mlsize_t)1 << (8 * sizeof(value) - 1)) - 1)
+#define Camlqt6_Max_int  (Camlqt6_Max_long - ((mlsize_t)1 << (8 * sizeof(value) - 10)))
+
+/* Coerce an untrusted OCaml callback result to bool. Only a genuine OCaml bool
+   (or int 0/1) is accepted; anything else is rejected rather than read as a
+   pointer and dereferenced by Bool_val.
+
+   Deliberately non-raising: this is called from inside Qt virtual method
+   overrides (dragEnterEvent/dragMoveEvent) where there is no OCaml frame to
+   catch an exception, and raising here would longjmp through C++ frames. */
+inline bool callback_to_bool(value res) {
+    if (Is_exception_result(res)) return false;
+    if (res == Val_false || res == Val_true) return res == Val_true;
+    if (res >= Val_unit && res <= Camlqt6_Max_int) return res != 0;
+    fprintf(stderr, "[CamlQt6] drag callback must return a bool; rejecting drop\n");
+    return false;
+}
+
+/* Acquires the runtime system when entering OCaml code from a Qt callback. */
 struct CamlDomainLockGuard {
     bool need_release;
     CamlDomainLockGuard() : need_release(false) {
@@ -79,19 +130,58 @@ struct CamlDomainLockGuard {
     }
 };
 
+/* Releases the runtime system around a Qt call that may block or run a nested
+   event loop, restoring the depth on scope exit. Exception-safe: a throw, a
+   longjmp, or abort() inside the guarded Qt call can no longer leave the domain
+   with a permanently corrupt lock state.
+
+   IMPORTANT: this must be declared in an explicit inner scope that closes
+   BEFORE the CAMLreturn of the enclosing primitive. Letting it live until
+   function-scope exit makes its destructor run after CAMLreturn has begun the
+   function epilogue, which tears down the OCaml frame's state underneath the
+   caml_acquire_runtime_system() call and crashes with an access violation.
+
+   Correct:
+       CAMLparam1(v);
+       { CamlBlockingSection bs; blocking_qt_call(); }
+       CAMLreturn(Val_unit);
+
+   Incorrect (access violation):
+       CAMLparam1(v);
+       CamlBlockingSection bs;
+       blocking_qt_call();
+       CAMLreturn(Val_unit);            // bs destroyed after CAMLreturn
+*/
+struct CamlBlockingSection {
+    int saved_depth;
+    CamlBlockingSection() : saved_depth(thread_domain_lock_depth) {
+        /* Order matters: clear the depth first, exactly as the previous
+           explicit release/acquire pairs did, so that a CamlDomainLockGuard
+           entered from a callback inside the guarded Qt call behaves
+           identically. */
+        thread_domain_lock_depth = 0;
+        caml_release_runtime_system();
+    }
+    ~CamlBlockingSection() {
+        caml_acquire_runtime_system();
+        thread_domain_lock_depth = saved_depth;
+    }
+};
+
 template <typename T>
 T* get_qobject(value v) {
+    check_custom(v, &camlqt6_qobject_ops, "CamlQt6: expected a Qt object handle");
     OCamlQObject* holder = QObject_holder(v);
     if (holder->ptr.isNull()) {
-        caml_failwith("Oqt6: Object has already been destroyed or is null");
+        caml_failwith("CamlQt6: object has already been destroyed or is null");
     }
     T* casted = dynamic_cast<T*>(holder->ptr.data());
     if (!casted) {
-        caml_failwith("Oqt6: Invalid object type cast");
+        caml_failwith("CamlQt6: invalid object type cast");
     }
     return casted;
 }
 
 #endif // __cplusplus
 
-#endif // OQT6_STUBS_H
+#endif // CAMLQT6_STUBS_H

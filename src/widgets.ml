@@ -148,7 +148,9 @@ module Widget = struct
   let set_mouse_tracking = qwidget_set_mouse_tracking
   let set_accept_drops = qwidget_set_accept_drops
   let accept_drops = qwidget_accept_drops
-  let as_widget = Core.cast
+  (* Statically checked coercion: only valid because the caller's tag is known to
+     extend [QWidget]. Core.Internal.cast is unsound in general. *)
+  let as_widget = Core.Internal.cast
 end
 
 (* Button *)
@@ -498,9 +500,16 @@ external qdialog_reject : 'a Core.t -> unit = "caml_oqt6_qdialog_reject"
 external qdialog_set_modal : 'a Core.t -> bool -> unit = "caml_oqt6_qdialog_set_modal"
 external qdialog_is_modal : 'a Core.t -> bool = "caml_oqt6_qdialog_is_modal"
 
+(* 1 = Accepted, 2 = Rejected *)
+let dialog_code_of_int = function
+  | 1 -> `Accepted
+  | _ -> `Rejected
+
 module Dialog = struct
+  type result = [ `Accepted | `Rejected ]
+
   let create ?parent () = qdialog_create parent
-  let exec = qdialog_exec
+  let exec d = dialog_code_of_int (qdialog_exec d)
   let accept = qdialog_accept
   let reject = qdialog_reject
   let set_modal = qdialog_set_modal
@@ -508,16 +517,61 @@ module Dialog = struct
 end
 
 (* MessageBox *)
-external qmessagebox_information : 'a Core.t option -> string -> string -> unit = "caml_oqt6_qmessagebox_information"
-external qmessagebox_warning : 'a Core.t option -> string -> string -> unit = "caml_oqt6_qmessagebox_warning"
-external qmessagebox_critical : 'a Core.t option -> string -> string -> unit = "caml_oqt6_qmessagebox_critical"
-external qmessagebox_question : 'a Core.t option -> string -> string -> bool = "caml_oqt6_qmessagebox_question"
+external qmessagebox_information : 'a Core.t option -> string -> string -> int option -> int
+  = "caml_oqt6_qmessagebox_information"
+external qmessagebox_warning : 'a Core.t option -> string -> string -> int option -> int
+  = "caml_oqt6_qmessagebox_warning"
+external qmessagebox_critical : 'a Core.t option -> string -> string -> int option -> int
+  = "caml_oqt6_qmessagebox_critical"
+external qmessagebox_question : 'a Core.t option -> string -> string -> int option -> int
+  = "caml_oqt6_qmessagebox_question"
+
+let int_of_buttons = function
+  | `Ok -> 1
+  | `Ok_cancel -> 2
+  | `Yes_no -> 3
+  | `Yes_no_cancel -> 4
+  | `Save_discard_cancel -> 5
+  | `Abort_retry_ignore -> 6
+  | `Ok_apply_cancel -> 7
+  | `Save_apply_cancel -> 8
+
+let answer_of_int = function
+  | 1 -> `Ok
+  | 2 -> `Cancel
+  | 3 -> `Yes
+  | 4 -> `No
+  | 5 -> `Save
+  | 6 -> `Discard
+  | 7 -> `Apply
+  | 8 -> `Reset
+  | 9 -> `Abort
+  | 10 -> `Retry
+  | 11 -> `Ignore
+  | 12 -> `Help
+  | _ -> `Dismissed
 
 module MessageBox = struct
-  let information ?parent ~title ~text () = qmessagebox_information parent title text
-  let warning ?parent ~title ~text () = qmessagebox_warning parent title text
-  let critical ?parent ~title ~text () = qmessagebox_critical parent title text
-  let question ?parent ~title ~text () = qmessagebox_question parent title text
+  type answer =
+    [ `Ok | `Cancel | `Yes | `No | `Save | `Discard | `Apply | `Reset
+    | `Abort | `Retry | `Ignore | `Help | `Dismissed ]
+
+  type buttons =
+    [ `Ok | `Ok_cancel | `Yes_no | `Yes_no_cancel | `Save_discard_cancel
+    | `Abort_retry_ignore | `Ok_apply_cancel | `Save_apply_cancel ]
+
+  let information ?parent ?(buttons = `Ok) ~title ~text () =
+    qmessagebox_information parent title text (Some (int_of_buttons buttons))
+    |> answer_of_int
+  let warning ?parent ?(buttons = `Ok) ~title ~text () =
+    qmessagebox_warning parent title text (Some (int_of_buttons buttons))
+    |> answer_of_int
+  let critical ?parent ?(buttons = `Ok) ~title ~text () =
+    qmessagebox_critical parent title text (Some (int_of_buttons buttons))
+    |> answer_of_int
+  let question ?parent ?(buttons = `Yes_no) ~title ~text () =
+    qmessagebox_question parent title text (Some (int_of_buttons buttons))
+    |> answer_of_int
 end
 
 (* FileDialog *)
@@ -650,20 +704,60 @@ external qtablemodel_create : 'a Core.t option -> qocaml_table_model Core.t = "c
 external qtablemodel_set_callbacks : 'a Core.t -> (unit -> int) -> (unit -> int) -> (int -> int -> string) -> (int -> int -> string) option -> unit = "caml_oqt6_tablemodel_set_callbacks"
 external qtablemodel_notify_reset : 'a Core.t -> unit = "caml_oqt6_tablemodel_notify_reset"
 external qtablemodel_notify_data_changed : 'a Core.t -> int -> int -> int -> int -> unit = "caml_oqt6_tablemodel_notify_data_changed"
+external qtablemodel_row_count : 'a Core.t -> int = "caml_oqt6_tablemodel_row_count"
+external qtablemodel_column_count : 'a Core.t -> int = "caml_oqt6_tablemodel_column_count"
+external qtablemodel_data : 'a Core.t -> int -> int -> string option = "caml_oqt6_tablemodel_data"
+external qtablemodel_header_data : 'a Core.t -> int -> int -> string option = "caml_oqt6_tablemodel_header_data"
+
+external qtablemodel_set_sort : 'a Core.t -> (int -> int -> unit) option -> unit = "caml_oqt6_tablemodel_set_sort"
+external qtablemodel_set_foreground : 'a Core.t -> (int -> int -> Gui.Color.t option) option -> unit = "caml_oqt6_tablemodel_set_foreground"
+external qtablemodel_set_background : 'a Core.t -> (int -> int -> Gui.Color.t option) option -> unit = "caml_oqt6_tablemodel_set_background"
+external qtablemodel_set_alignment : 'a Core.t -> (int -> int -> int option) option -> unit = "caml_oqt6_tablemodel_set_alignment"
+external qtablemodel_set_decoration : 'a Core.t -> (int -> int -> Gui.Icon.t option) option -> unit = "caml_oqt6_tablemodel_set_decoration"
+external qtablemodel_set_tooltip : 'a Core.t -> (int -> int -> string option) option -> unit = "caml_oqt6_tablemodel_set_tooltip"
+external qtablemodel_sort : 'a Core.t -> int -> bool -> unit = "caml_oqt6_tablemodel_sort"
 
 module TableModel = struct
-  let create ?parent ~row_count ~col_count ~data ?header_data () =
+  (* Qt::AlignmentFlag bits for [~alignment]; OR them together as needed. *)
+  let align_left = 0x0001
+  let align_right = 0x0002
+  let align_hcenter = 0x0004
+  let align_top = 0x0020
+  let align_bottom = 0x0040
+  let align_vcenter = 0x0080
+
+  let create ?parent ?sort ?foreground ?background ?alignment ?decoration ?tooltip
+      ~row_count ~col_count ~data ?header_data () =
     let m = qtablemodel_create parent in
     let header_cb = Option.map (fun cb sec orient_int ->
       let orient = if orient_int = 0 then `Horizontal else `Vertical in
       cb sec orient
     ) header_data in
     qtablemodel_set_callbacks m row_count col_count data header_cb;
+    qtablemodel_set_sort m
+      (Option.map (fun f col order_desc ->
+         f col (if order_desc = 1 then `Descending else `Ascending)) sort);
+    qtablemodel_set_foreground m foreground;
+    qtablemodel_set_background m background;
+    qtablemodel_set_alignment m alignment;
+    qtablemodel_set_decoration m decoration;
+    qtablemodel_set_tooltip m tooltip;
     m
 
   let notify_reset = qtablemodel_notify_reset
   let notify_data_changed m ~top_row ~left_col ~bottom_row ~right_col =
     qtablemodel_notify_data_changed m top_row left_col bottom_row right_col
+
+  let row_count = qtablemodel_row_count
+  let column_count = qtablemodel_column_count
+  let data_at m ~row ~col = qtablemodel_data m row col
+
+  let header_at m ~section ~orientation =
+    qtablemodel_header_data m section (if orientation = `Horizontal then 0 else 1)
+
+  (* Triggers [sort] and resets the view, exactly as clicking a sortable header
+     does. Requires the model to have been created with [~sort]. *)
+  let sort m ~column ?descending () = qtablemodel_sort m column (Option.value ~default:false descending)
 end
 
 (* TableView *)
@@ -678,7 +772,7 @@ external qtableview_resize_columns_to_contents : 'a Core.t -> unit = "caml_oqt6_
 external qtableview_resize_rows_to_contents : 'a Core.t -> unit = "caml_oqt6_qtableview_resize_rows_to_contents"
 external qtableview_horizontal_header : 'a Core.t -> qheader_view Core.t = "caml_oqt6_qtableview_horizontal_header"
 external qtableview_vertical_header : 'a Core.t -> qheader_view Core.t = "caml_oqt6_qtableview_vertical_header"
-external qtableview_selection_model : 'a Core.t -> qitem_selection_model Core.t = "caml_oqt6_qtableview_selection_model"
+external qtableview_selection_model : 'a Core.t -> qitem_selection_model Core.t option = "caml_oqt6_qtableview_selection_model"
 external qtableview_connect_clicked : 'a Core.t -> (int -> int -> unit) -> unit = "caml_oqt6_qtableview_connect_clicked"
 external qtableview_connect_double_clicked : 'a Core.t -> (int -> int -> unit) -> unit = "caml_oqt6_qtableview_connect_double_clicked"
 
@@ -709,7 +803,7 @@ external qtreeview_set_alternating_row_colors : 'a Core.t -> bool -> unit = "cam
 external qtreeview_expand_all : 'a Core.t -> unit = "caml_oqt6_qtreeview_expand_all"
 external qtreeview_collapse_all : 'a Core.t -> unit = "caml_oqt6_qtreeview_collapse_all"
 external qtreeview_header : 'a Core.t -> qheader_view Core.t = "caml_oqt6_qtreeview_header"
-external qtreeview_selection_model : 'a Core.t -> qitem_selection_model Core.t = "caml_oqt6_qtreeview_selection_model"
+external qtreeview_selection_model : 'a Core.t -> qitem_selection_model Core.t option = "caml_oqt6_qtreeview_selection_model"
 external qtreeview_connect_clicked : 'a Core.t -> (int -> int -> unit) -> unit = "caml_oqt6_qtreeview_connect_clicked"
 
 module TreeView = struct
@@ -731,7 +825,7 @@ external qlistview_create : 'a Core.t option -> qlist_view Core.t = "caml_oqt6_q
 external qlistview_set_model : 'a Core.t -> 'b Core.t -> unit = "caml_oqt6_qlistview_set_model"
 external qlistview_set_selection_behavior : 'a Core.t -> int -> unit = "caml_oqt6_qlistview_set_selection_behavior"
 external qlistview_set_selection_mode : 'a Core.t -> int -> unit = "caml_oqt6_qlistview_set_selection_mode"
-external qlistview_selection_model : 'a Core.t -> qitem_selection_model Core.t = "caml_oqt6_qlistview_selection_model"
+external qlistview_selection_model : 'a Core.t -> qitem_selection_model Core.t option = "caml_oqt6_qlistview_selection_model"
 external qlistview_connect_clicked : 'a Core.t -> (int -> unit) -> unit = "caml_oqt6_qlistview_connect_clicked"
 
 module ListView = struct

@@ -1,6 +1,10 @@
 type (+'a) t
 
-external cast : 'a t -> 'b t = "%identity"
+module Internal = struct
+  (* Unsound tag reinterpretation. Safe only between tags that describe the same
+     C++ object hierarchy; never call it with unrelated types. *)
+  external cast : 'a t -> 'b t = "%identity"
+end
 
 type qobject = [ `QObject ]
 type qtimer = [ qobject | `QTimer ]

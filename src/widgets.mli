@@ -263,8 +263,15 @@ module StatusBar : sig
 end
 
 module Dialog : sig
+  (** Result of [exec]. Qt's raw [QDialog.DialogCode] is not exposed. *)
+  type result = [ `Accepted | `Rejected ]
+
   val create : ?parent:[> `QWidget ] Core.t -> unit -> qdialog Core.t
-  val exec : [> `QDialog ] Core.t -> int
+
+  (** Runs the dialog as a modal window, blocking until it is accepted, rejected
+      or dismissed. The OCaml runtime system is released for the duration, so
+      other domains keep running. *)
+  val exec : [> `QDialog ] Core.t -> result
   val accept : [> `QDialog ] Core.t -> unit
   val reject : [> `QDialog ] Core.t -> unit
   val set_modal : [> `QDialog ] Core.t -> bool -> unit
@@ -272,10 +279,33 @@ module Dialog : sig
 end
 
 module MessageBox : sig
-  val information : ?parent:[> `QWidget ] Core.t -> title:string -> text:string -> unit -> unit
-  val warning : ?parent:[> `QWidget ] Core.t -> title:string -> text:string -> unit -> unit
-  val critical : ?parent:[> `QWidget ] Core.t -> title:string -> text:string -> unit -> unit
-  val question : ?parent:[> `QWidget ] Core.t -> title:string -> text:string -> unit -> bool
+  (** Which button the user pressed. [`Dismissed] means the dialog was closed
+      without pressing a button (window close / Escape), which is distinct from
+      pressing [`Cancel]. *)
+  type answer =
+    [ `Ok | `Cancel | `Yes | `No | `Save | `Discard | `Apply | `Reset
+    | `Abort | `Retry | `Ignore | `Help | `Dismissed ]
+
+  (** Which buttons to offer. *)
+  type buttons =
+    [ `Ok | `Ok_cancel | `Yes_no | `Yes_no_cancel | `Save_discard_cancel
+    | `Abort_retry_ignore | `Ok_apply_cancel | `Save_apply_cancel ]
+
+  (** [information]/[warning]/[critical] default to a single [`Ok] button and
+      return which button was pressed, so callers that only need to know the box
+      was dismissed can ignore the result. No button is the default, so pressing
+      Return does not silently accept. *)
+  val information :
+    ?parent:[> `QWidget ] Core.t -> ?buttons:buttons -> title:string -> text:string -> unit -> answer
+  val warning :
+    ?parent:[> `QWidget ] Core.t -> ?buttons:buttons -> title:string -> text:string -> unit -> answer
+  val critical :
+    ?parent:[> `QWidget ] Core.t -> ?buttons:buttons -> title:string -> text:string -> unit -> answer
+
+  (** Defaults to [`Yes_no]. Note that [`No] and [`Dismissed] are distinct: the
+      former is an explicit refusal, the latter means no button was pressed. *)
+  val question :
+    ?parent:[> `QWidget ] Core.t -> ?buttons:buttons -> title:string -> text:string -> unit -> answer
 end
 
 module FileDialog : sig
@@ -342,8 +372,35 @@ module StandardItemModel : sig
 end
 
 module TableModel : sig
+  (** Qt alignment flags for [~alignment]; OR them together as needed. *)
+  val align_left : int
+  val align_right : int
+  val align_hcenter : int
+  val align_top : int
+  val align_bottom : int
+  val align_vcenter : int
+
+  (** Binds OCaml data to a [QTableView] without copying it into C++. [row_count],
+      [col_count], [data] and [header_data] are called by Qt on demand while
+      painting.
+
+      [sort] is required for [TableView.set_sorting_enabled] to do anything:
+      without it Qt's default [sort] is a no-op and the header looks sortable but
+      silently does not. [sort] is expected to reorder the underlying OCaml
+      collection; the view is then reset for you.
+
+      [foreground], [background], [alignment], [decoration] and [tooltip] are
+      per-cell [row -> col -> payload] callbacks for the corresponding Qt item
+      data roles. Returning [None] means "no opinion" and leaves the cell with
+      the view's own styling. [alignment] takes OR'd [align_*] flags. *)
   val create :
     ?parent:[> `QObject ] Core.t ->
+    ?sort:(int -> [ `Ascending | `Descending ] -> unit) ->
+    ?foreground:(int -> int -> Gui.Color.t option) ->
+    ?background:(int -> int -> Gui.Color.t option) ->
+    ?alignment:(int -> int -> int option) ->
+    ?decoration:(int -> int -> Gui.Icon.t option) ->
+    ?tooltip:(int -> int -> string option) ->
     row_count:(unit -> int) ->
     col_count:(unit -> int) ->
     data:(int -> int -> string) ->
@@ -351,7 +408,22 @@ module TableModel : sig
     unit -> qocaml_table_model Core.t
 
   val notify_reset : [> `QOCamlTableModel ] Core.t -> unit
+
+  (** [bottom_row] / [right_col] are inclusive, as in Qt. *)
   val notify_data_changed : [> `QOCamlTableModel ] Core.t -> top_row:int -> left_col:int -> bottom_row:int -> right_col:int -> unit
+
+  (** Trigger a sort from OCaml, as clicking a sortable header would. Does
+      nothing unless the model was created with [~sort]. *)
+  val sort : [> `QOCamlTableModel ] Core.t -> column:int -> ?descending:bool -> unit -> unit
+
+  (** {2 Read access}
+
+      These query the model through Qt's own dispatch, i.e. the same path a view
+      takes while painting. *)
+  val row_count : [> `QOCamlTableModel ] Core.t -> int
+  val column_count : [> `QOCamlTableModel ] Core.t -> int
+  val data_at : [> `QOCamlTableModel ] Core.t -> row:int -> col:int -> string option
+  val header_at : [> `QOCamlTableModel ] Core.t -> section:int -> orientation:orientation -> string option
 end
 
 module TableView : sig
@@ -366,7 +438,7 @@ module TableView : sig
   val resize_rows_to_contents : [> `QTableView ] Core.t -> unit
   val horizontal_header : [> `QTableView ] Core.t -> qheader_view Core.t
   val vertical_header : [> `QTableView ] Core.t -> qheader_view Core.t
-  val selection_model : [> `QTableView ] Core.t -> qitem_selection_model Core.t
+  val selection_model : [> `QTableView ] Core.t -> qitem_selection_model Core.t option
   val on_clicked : [> `QTableView ] Core.t -> (int -> int -> unit) -> unit
   val on_double_clicked : [> `QTableView ] Core.t -> (int -> int -> unit) -> unit
 end
@@ -381,7 +453,7 @@ module TreeView : sig
   val expand_all : [> `QTreeView ] Core.t -> unit
   val collapse_all : [> `QTreeView ] Core.t -> unit
   val header : [> `QTreeView ] Core.t -> qheader_view Core.t
-  val selection_model : [> `QTreeView ] Core.t -> qitem_selection_model Core.t
+  val selection_model : [> `QTreeView ] Core.t -> qitem_selection_model Core.t option
   val on_clicked : [> `QTreeView ] Core.t -> (int -> int -> unit) -> unit
 end
 
@@ -390,7 +462,7 @@ module ListView : sig
   val set_model : [> `QListView ] Core.t -> [> `QAbstractItemModel ] Core.t -> unit
   val set_selection_behavior : [> `QListView ] Core.t -> selection_behavior -> unit
   val set_selection_mode : [> `QListView ] Core.t -> selection_mode -> unit
-  val selection_model : [> `QListView ] Core.t -> qitem_selection_model Core.t
+  val selection_model : [> `QListView ] Core.t -> qitem_selection_model Core.t option
   val on_clicked : [> `QListView ] Core.t -> (int -> unit) -> unit
 end
 

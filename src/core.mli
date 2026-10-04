@@ -2,7 +2,20 @@
 
 type (+'a) t
 
-external cast : 'a t -> 'b t = "%identity"
+(** {1 Internal} *)
+
+(** Escape hatches used by the rest of the library. Not part of the supported
+    surface, and unsound: [cast] reinterprets a handle's phantom tag without any
+    check, so casting between unrelated Qt types produces a handle the runtime
+    cannot validate.
+
+    It lives here rather than at the top level because the phantom-variant
+    hierarchy (see {!Widgets}) is only meaningful if there is no ordinary way to
+    forge a tag. Reach for {!Widget.as_widget} first, which performs a
+    statically checked coercion. *)
+module Internal : sig
+  val cast : 'a t -> 'b t
+end
 
 type qobject = [ `QObject ]
 type qtimer = [ qobject | `QTimer ]

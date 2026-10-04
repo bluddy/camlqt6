@@ -98,7 +98,7 @@ static intnat hash_qobject(value v) {
     return (intnat)h->ptr.data();
 }
 
-static struct custom_operations qobject_custom_ops = {
+const struct custom_operations camlqt6_qobject_ops = {
     (char*)"org.oqt6.qobject",
     finalize_qobject,
     compare_qobject,
@@ -110,8 +110,13 @@ static struct custom_operations qobject_custom_ops = {
 };
 
 value alloc_qobject(QObject* obj, bool owned) {
-    if (!obj) return Val_unit;
-    value v = caml_alloc_custom(&qobject_custom_ops, sizeof(OCamlQObject), 0, 1);
+    /* Returning Val_unit here would hand an immediate back to OCaml code typed
+       as Core.t; the first accessor call would then dereference it as a custom
+       block. Raise instead. */
+    if (!obj) {
+        caml_failwith("CamlQt6: internal error, tried to wrap a null Qt object");
+    }
+    value v = caml_alloc_custom(&camlqt6_qobject_ops, sizeof(OCamlQObject), 0, 1);
     OCamlQObject* holder = new (Data_custom_val(v)) OCamlQObject();
     holder->ptr = obj;
     holder->owned = owned;
@@ -119,6 +124,7 @@ value alloc_qobject(QObject* obj, bool owned) {
 }
 
 void mark_parented(value v) {
+    check_custom(v, &camlqt6_qobject_ops, "CamlQt6: expected a Qt object handle");
     OCamlQObject* holder = QObject_holder(v);
     holder->owned = false;
 }
@@ -134,8 +140,18 @@ static void connect_root_cleanup(QObject* sender, value* root) {
     });
 }
 
+/* Allocate (once) a registered global root cell and store [v] in it. Lets a
+   callback be replaced later without leaking the previous registration. */
+static void set_root(value** slot, value v) {
+    if (*slot == nullptr) {
+        *slot = new value;
+        caml_register_global_root(*slot);
+    }
+    **slot = v;
+}
+
 // QColor custom operations
-static struct custom_operations color_custom_ops = {
+const struct custom_operations camlqt6_qcolor_ops = {
     (char*)"org.oqt6.qcolor",
     custom_finalize_default,
     custom_compare_default,
@@ -147,19 +163,22 @@ static struct custom_operations color_custom_ops = {
 };
 
 static value alloc_color(const QColor& c) {
-    value v = caml_alloc_custom(&color_custom_ops, sizeof(QColor), 0, 1);
+    value v = caml_alloc_custom(&camlqt6_qcolor_ops, sizeof(QColor), 0, 1);
     new (Data_custom_val(v)) QColor(c);
     return v;
 }
 
-#define QColor_val(v) (*((QColor*)Data_custom_val(v)))
+inline QColor& QColor_val(value v) {
+    check_custom(v, &camlqt6_qcolor_ops, "CamlQt6: expected a Color.t");
+    return *((QColor*)Data_custom_val(v));
+}
 
 // QFont custom operations
 static void finalize_font(value v) {
     ((QFont*)Data_custom_val(v))->~QFont();
 }
 
-static struct custom_operations font_custom_ops = {
+const struct custom_operations camlqt6_qfont_ops = {
     (char*)"org.oqt6.qfont",
     finalize_font,
     custom_compare_default,
@@ -171,19 +190,22 @@ static struct custom_operations font_custom_ops = {
 };
 
 static value alloc_font(const QFont& f) {
-    value v = caml_alloc_custom(&font_custom_ops, sizeof(QFont), 0, 1);
+    value v = caml_alloc_custom(&camlqt6_qfont_ops, sizeof(QFont), 0, 1);
     new (Data_custom_val(v)) QFont(f);
     return v;
 }
 
-#define Font_val(v) (*((QFont*)Data_custom_val(v)))
+inline QFont& Font_val(value v) {
+    check_custom(v, &camlqt6_qfont_ops, "CamlQt6: expected a Font.t");
+    return *((QFont*)Data_custom_val(v));
+}
 
 // QPen custom operations
 static void finalize_pen(value v) {
     ((QPen*)Data_custom_val(v))->~QPen();
 }
 
-static struct custom_operations pen_custom_ops = {
+const struct custom_operations camlqt6_qpen_ops = {
     (char*)"org.oqt6.qpen",
     finalize_pen,
     custom_compare_default,
@@ -195,19 +217,22 @@ static struct custom_operations pen_custom_ops = {
 };
 
 static value alloc_pen(const QPen& p) {
-    value v = caml_alloc_custom(&pen_custom_ops, sizeof(QPen), 0, 1);
+    value v = caml_alloc_custom(&camlqt6_qpen_ops, sizeof(QPen), 0, 1);
     new (Data_custom_val(v)) QPen(p);
     return v;
 }
 
-#define Pen_val(v) (*((QPen*)Data_custom_val(v)))
+inline QPen& Pen_val(value v) {
+    check_custom(v, &camlqt6_qpen_ops, "CamlQt6: expected a Pen.t");
+    return *((QPen*)Data_custom_val(v));
+}
 
 // QBrush custom operations
 static void finalize_brush(value v) {
     ((QBrush*)Data_custom_val(v))->~QBrush();
 }
 
-static struct custom_operations brush_custom_ops = {
+const struct custom_operations camlqt6_qbrush_ops = {
     (char*)"org.oqt6.qbrush",
     finalize_brush,
     custom_compare_default,
@@ -219,19 +244,22 @@ static struct custom_operations brush_custom_ops = {
 };
 
 static value alloc_brush(const QBrush& b) {
-    value v = caml_alloc_custom(&brush_custom_ops, sizeof(QBrush), 0, 1);
+    value v = caml_alloc_custom(&camlqt6_qbrush_ops, sizeof(QBrush), 0, 1);
     new (Data_custom_val(v)) QBrush(b);
     return v;
 }
 
-#define Brush_val(v) (*((QBrush*)Data_custom_val(v)))
+inline QBrush& Brush_val(value v) {
+    check_custom(v, &camlqt6_qbrush_ops, "CamlQt6: expected a Brush.t");
+    return *((QBrush*)Data_custom_val(v));
+}
 
 // QPixmap custom operations
 static void finalize_pixmap(value v) {
     ((QPixmap*)Data_custom_val(v))->~QPixmap();
 }
 
-static struct custom_operations pixmap_custom_ops = {
+const struct custom_operations camlqt6_qpixmap_ops = {
     (char*)"org.oqt6.qpixmap",
     finalize_pixmap,
     custom_compare_default,
@@ -243,19 +271,22 @@ static struct custom_operations pixmap_custom_ops = {
 };
 
 static value alloc_pixmap(const QPixmap& p) {
-    value v = caml_alloc_custom(&pixmap_custom_ops, sizeof(QPixmap), 0, 1);
+    value v = caml_alloc_custom(&camlqt6_qpixmap_ops, sizeof(QPixmap), 0, 1);
     new (Data_custom_val(v)) QPixmap(p);
     return v;
 }
 
-#define Pixmap_val(v) (*((QPixmap*)Data_custom_val(v)))
+inline QPixmap& Pixmap_val(value v) {
+    check_custom(v, &camlqt6_qpixmap_ops, "CamlQt6: expected a Pixmap.t");
+    return *((QPixmap*)Data_custom_val(v));
+}
 
 // QIcon custom operations
 static void finalize_icon(value v) {
     ((QIcon*)Data_custom_val(v))->~QIcon();
 }
 
-static struct custom_operations icon_custom_ops = {
+const struct custom_operations camlqt6_qicon_ops = {
     (char*)"org.oqt6.qicon",
     finalize_icon,
     custom_compare_default,
@@ -267,12 +298,15 @@ static struct custom_operations icon_custom_ops = {
 };
 
 static value alloc_icon(const QIcon& ic) {
-    value v = caml_alloc_custom(&icon_custom_ops, sizeof(QIcon), 0, 1);
+    value v = caml_alloc_custom(&camlqt6_qicon_ops, sizeof(QIcon), 0, 1);
     new (Data_custom_val(v)) QIcon(ic);
     return v;
 }
 
-#define Icon_val(v) (*((QIcon*)Data_custom_val(v)))
+inline QIcon& Icon_val(value v) {
+    check_custom(v, &camlqt6_qicon_ops, "CamlQt6: expected an Icon.t");
+    return *((QIcon*)Data_custom_val(v));
+}
 
 // QPainter holder
 struct OCamlPainterHolder {
@@ -281,7 +315,7 @@ struct OCamlPainterHolder {
 
 #define Painter_holder(v) ((OCamlPainterHolder*)Data_custom_val(v))
 
-static struct custom_operations painter_custom_ops = {
+const struct custom_operations camlqt6_qpainter_ops = {
     (char*)"org.oqt6.qpainter",
     custom_finalize_default,
     custom_compare_default,
@@ -293,15 +327,16 @@ static struct custom_operations painter_custom_ops = {
 };
 
 static value alloc_painter(QPainter* p) {
-    value v = caml_alloc_custom(&painter_custom_ops, sizeof(OCamlPainterHolder), 0, 1);
+    value v = caml_alloc_custom(&camlqt6_qpainter_ops, sizeof(OCamlPainterHolder), 0, 1);
     Painter_holder(v)->painter = p;
     return v;
 }
 
 static QPainter* get_painter(value v) {
+    check_custom(v, &camlqt6_qpainter_ops, "CamlQt6: expected a Painter.t");
     OCamlPainterHolder* h = Painter_holder(v);
     if (!h->painter) {
-        caml_failwith("Oqt6: QPainter is no longer active (only valid during paint event)");
+        caml_failwith("CamlQt6: QPainter is no longer active (only valid during paint event)");
     }
     return h->painter;
 }
@@ -469,7 +504,7 @@ protected:
             };
             value res = caml_callbackN_exn(*drag_enter_cb, 3, args);
             handle_callback_result(res);
-            bool accepted = !Is_exception_result(res) && Bool_val(res);
+            bool accepted = callback_to_bool(res);
             CAMLdrop;
             if (accepted) {
                 event->acceptProposedAction();
@@ -492,7 +527,7 @@ protected:
             };
             value res = caml_callbackN_exn(*drag_move_cb, 3, args);
             handle_callback_result(res);
-            bool accepted = !Is_exception_result(res) && Bool_val(res);
+            bool accepted = callback_to_bool(res);
             CAMLdrop;
             if (accepted) {
                 event->acceptProposedAction();
@@ -538,61 +573,149 @@ public:
     value* col_count_cb = nullptr;
     value* data_cb = nullptr;
     value* header_data_cb = nullptr;
+    value* sort_cb = nullptr;
+    value* foreground_cb = nullptr;
+    value* background_cb = nullptr;
+    value* alignment_cb = nullptr;
+    value* decoration_cb = nullptr;
+    value* tooltip_cb = nullptr;
 
     explicit OCamlTableModel(QObject* parent = nullptr) : QAbstractTableModel(parent) {}
 
     ~OCamlTableModel() override {
-        if (row_count_cb) {
-            caml_remove_global_root(row_count_cb);
-            delete row_count_cb;
-        }
-        if (col_count_cb) {
-            caml_remove_global_root(col_count_cb);
-            delete col_count_cb;
-        }
-        if (data_cb) {
-            caml_remove_global_root(data_cb);
-            delete data_cb;
-        }
-        if (header_data_cb) {
-            caml_remove_global_root(header_data_cb);
-            delete header_data_cb;
+        /* Must hold the runtime system before touching the global roots table:
+           this destructor can run from finalize_qobject's deleteLater(), which
+           is processed inside exec()/processEvents() after the runtime system
+           has been released. */
+        CamlDomainLockGuard guard;
+        cleanup_root(&row_count_cb);
+        cleanup_root(&col_count_cb);
+        cleanup_root(&data_cb);
+        cleanup_root(&header_data_cb);
+        cleanup_root(&sort_cb);
+        cleanup_root(&foreground_cb);
+        cleanup_root(&background_cb);
+        cleanup_root(&alignment_cb);
+        cleanup_root(&decoration_cb);
+        cleanup_root(&tooltip_cb);
+    }
+
+private:
+    void cleanup_root(value** r) {
+        if (*r) {
+            caml_remove_global_root(*r);
+            delete *r;
+            *r = nullptr;
         }
     }
 
-    int rowCount(const QModelIndex& parent = QModelIndex()) const override {
-        if (parent.isValid() || !row_count_cb) return 0;
-        CamlDomainLockGuard guard;
-        value res = caml_callback_exn(*row_count_cb, Val_unit);
+    /* The OCaml closures below are user-supplied and their return types are
+       unchecked at the C boundary, so validate before coercing. */
+    static int callback_to_int(value res) {
         if (Is_exception_result(res)) {
             handle_callback_result(res);
             return 0;
         }
-        return Int_val(res);
+        if (res >= Val_unit && res <= Camlqt6_Max_int) return Int_val(res);
+        fprintf(stderr, "[CamlQt6] TableModel callback must return an int\n");
+        return 0;
+    }
+
+    static QString callback_to_string(value res) {
+        if (Is_exception_result(res)) {
+            handle_callback_result(res);
+            return QString();
+        }
+        if (Is_block(res) && Tag_val(res) == String_tag) {
+            return QString::fromUtf8(
+                String_val(res), caml_string_length(res));
+        }
+        fprintf(stderr, "[CamlQt6] TableModel callback must return a string\n");
+        return QString();
+    }
+
+public:
+    int rowCount(const QModelIndex& parent = QModelIndex()) const override {
+        if (parent.isValid() || !row_count_cb) return 0;
+        CamlDomainLockGuard guard;
+        return callback_to_int(caml_callback_exn(*row_count_cb, Val_unit));
     }
 
     int columnCount(const QModelIndex& parent = QModelIndex()) const override {
         if (parent.isValid() || !col_count_cb) return 0;
         CamlDomainLockGuard guard;
-        value res = caml_callback_exn(*col_count_cb, Val_unit);
-        if (Is_exception_result(res)) {
-            handle_callback_result(res);
-            return 0;
-        }
-        return Int_val(res);
+        return callback_to_int(caml_callback_exn(*col_count_cb, Val_unit));
     }
 
-    QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override {
-        if (!index.isValid() || !data_cb) return QVariant();
-        if (role != Qt::DisplayRole && role != Qt::EditRole) return QVariant();
+    /* Role helpers. Each optional OCaml callback has the shape
+       (row, col) -> payload, and returning nothing means "no opinion", so the
+       view falls back to its own styling. */
+    template <typename F>
+    QVariant call_cell_role(value* cb, const QModelIndex& index, F&& convert) const {
+        if (!cb || !index.isValid()) return QVariant();
         CamlDomainLockGuard guard;
         value args[2] = { Val_int(index.row()), Val_int(index.column()) };
-        value res = caml_callbackN_exn(*data_cb, 2, args);
+        value res = caml_callbackN_exn(*cb, 2, args);
         if (Is_exception_result(res)) {
             handle_callback_result(res);
             return QVariant();
         }
-        return QString::fromUtf8(String_val(res));
+        if (res == Val_none) return QVariant();
+        if (Is_block(res) && Wosize_val(res) >= 1) return convert(Field(res, 0));
+        return QVariant();
+    }
+
+    QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override {
+        if (!index.isValid()) return QVariant();
+        if (role == Qt::ForegroundRole) {
+            return call_cell_role(foreground_cb, index, [](value v) {
+                return QVariant(QColor_val(v));
+            });
+        }
+        if (role == Qt::BackgroundRole) {
+            return call_cell_role(background_cb, index, [](value v) {
+                return QVariant(QColor_val(v));
+            });
+        }
+        if (role == Qt::TextAlignmentRole) {
+            return call_cell_role(alignment_cb, index, [](value v) {
+                /* Encoded as Qt::Alignment flags by the OCaml layer. */
+                return QVariant(Int_val(v));
+            });
+        }
+        if (role == Qt::DecorationRole) {
+            return call_cell_role(decoration_cb, index, [](value v) {
+                return QVariant(Icon_val(v));
+            });
+        }
+        if (role == Qt::ToolTipRole) {
+            return call_cell_role(tooltip_cb, index, [](value v) {
+                return QVariant(QString::fromUtf8(String_val(v)));
+            });
+        }
+        if (role != Qt::DisplayRole && role != Qt::EditRole) return QVariant();
+        if (!data_cb) return QVariant();
+        CamlDomainLockGuard guard;
+        value args[2] = { Val_int(index.row()), Val_int(index.column()) };
+        return QVariant(callback_to_string(caml_callbackN_exn(*data_cb, 2, args)));
+    }
+
+    /* QAbstractItemModel::sort is a no-op unless overridden, which is why
+       TableView.set_sorting_enabled used to appear to work and silently did
+       nothing for this model. */
+    void sort(int column, Qt::SortOrder order = Qt::AscendingOrder) override {
+        if (!sort_cb) {
+            QAbstractTableModel::sort(column, order);
+            return;
+        }
+        {
+            CamlDomainLockGuard guard;
+            value args[2] = { Val_int(column), Val_int(order == Qt::DescendingOrder ? 1 : 0) };
+            value res = caml_callbackN_exn(*sort_cb, 2, args);
+            if (Is_exception_result(res)) handle_callback_result(res);
+        }
+        beginResetModel();
+        endResetModel();
     }
 
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override {
@@ -602,12 +725,7 @@ public:
         CamlDomainLockGuard guard;
         int orient = (orientation == Qt::Horizontal) ? 0 : 1;
         value args[2] = { Val_int(section), Val_int(orient) };
-        value res = caml_callbackN_exn(*header_data_cb, 2, args);
-        if (Is_exception_result(res)) {
-            handle_callback_result(res);
-            return QVariant();
-        }
-        return QString::fromUtf8(String_val(res));
+        return QVariant(callback_to_string(caml_callbackN_exn(*header_data_cb, 2, args)));
     }
 
     void notify_reset() {
@@ -628,16 +746,26 @@ extern "C" {
 
 CAMLprim value caml_oqt6_qobject_delete(value v_obj) {
     CAMLparam1(v_obj);
+    check_custom(v_obj, &camlqt6_qobject_ops, "CamlQt6: expected a Qt object handle");
     OCamlQObject* holder = QObject_holder(v_obj);
-    if (!holder->ptr.isNull()) {
-        delete holder->ptr.data();
-        holder->ptr = nullptr;
+    if (holder->ptr.isNull()) {
+        CAMLreturn(Val_unit);
     }
+    if (!holder->owned) {
+        /* Qt owns this object (it is a QObject child, a cached getter result such
+           as QMainWindow::menuBar(), or ownership was transferred by an add* /
+           set* call). Deleting it would corrupt Qt's child list. */
+        holder->ptr = nullptr;
+        caml_invalid_argument("CamlQt6: Object.delete on an object owned by Qt");
+    }
+    delete holder->ptr.data();
+    holder->ptr = nullptr;
     CAMLreturn(Val_unit);
 }
 
 CAMLprim value caml_oqt6_qobject_is_valid(value v_obj) {
     CAMLparam1(v_obj);
+    check_custom(v_obj, &camlqt6_qobject_ops, "CamlQt6: expected a Qt object handle");
     OCamlQObject* holder = QObject_holder(v_obj);
     CAMLreturn(Val_bool(!holder->ptr.isNull()));
 }
@@ -811,7 +939,22 @@ CAMLprim value caml_oqt6_qapplication_create(value v_args) {
     if (global_app != nullptr) {
         caml_failwith("CamlQt6: QApplication has already been created");
     }
+    /* The QApplication must be created on the OCaml main domain, i.e. the thread
+       that will run the Qt event loop. Creating it from a secondary domain would
+       make the lock bookkeeping below (and therefore every CamlDomainLockGuard
+       on that thread) lie about the runtime system. */
+    if (Caml_state->id != 0) {
+        caml_failwith(
+            "CamlQt6: App.create must be called from the main OCaml domain "
+            "(the thread that runs the Qt event loop)");
+    }
+    /* Correct for this thread: an OCaml -> C++ call is in progress, so the
+       calling OCaml frame already holds the runtime system. The blocking
+       sections below decrement this to 0 for their duration. */
     thread_domain_lock_depth = 1;
+    /* The OCaml main thread is already registered with the runtime; calling
+       caml_c_thread_register() here would deadlock on the systhreads mutex.
+       CamlDomainLockGuard still registers lazily for foreign threads. */
     thread_is_registered = true;
     qInstallMessageHandler(qt_message_handler);
 
@@ -839,32 +982,30 @@ CAMLprim value caml_oqt6_qapplication_create(value v_args) {
 CAMLprim value caml_oqt6_qapplication_exec(value v_app) {
     CAMLparam1(v_app);
     QApplication* app = get_qobject<QApplication>(v_app);
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    int ret = app->exec();
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
+    int ret;
+    {
+        CamlBlockingSection blocking_section;
+        ret = app->exec();
+    }
     CAMLreturn(Val_int(ret));
 }
 
 CAMLprim value caml_oqt6_qapplication_process_events(value v_unit) {
     CAMLparam1(v_unit);
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    QCoreApplication::processEvents();
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
+    {
+        CamlBlockingSection blocking_section;
+        QCoreApplication::processEvents();
+    }
     CAMLreturn(Val_unit);
 }
 
 CAMLprim value caml_oqt6_qapplication_process_events_wait(value v_timeout_ms) {
     CAMLparam1(v_timeout_ms);
     int timeout = Is_block(v_timeout_ms) ? Int_val(Field(v_timeout_ms, 0)) : 100;
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    QCoreApplication::processEvents(QEventLoop::WaitForMoreEvents, timeout);
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
+    {
+        CamlBlockingSection blocking_section;
+        QCoreApplication::processEvents(QEventLoop::WaitForMoreEvents, timeout);
+    }
     CAMLreturn(Val_unit);
 }
 
@@ -2124,12 +2265,15 @@ CAMLprim value caml_oqt6_qdialog_create(value v_parent) {
 CAMLprim value caml_oqt6_qdialog_exec(value v_dlg) {
     CAMLparam1(v_dlg);
     QDialog* dlg = get_qobject<QDialog>(v_dlg);
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    int ret = dlg->exec();
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
-    CAMLreturn(Val_int(ret));
+    int ret;
+    {
+        CamlBlockingSection blocking_section;
+        ret = dlg->exec();
+    }
+    /* QDialog::DialogCode: 1 = Accepted, 0 = Rejected (also returned when the
+       dialog is deleted while running). Expose a closed 0/1/2 encoding rather
+       than Qt's enum so OCaml does not depend on Qt's numbering. */
+    CAMLreturn(Val_int(ret == QDialog::Accepted ? 1 : 2));
 }
 
 CAMLprim value caml_oqt6_qdialog_accept(value v_dlg) {
@@ -2161,65 +2305,84 @@ CAMLprim value caml_oqt6_qdialog_is_modal(value v_dlg) {
 
 /* QMessageBox primitives */
 
-CAMLprim value caml_oqt6_qmessagebox_information(value v_parent, value v_title, value v_text) {
-    CAMLparam3(v_parent, v_title, v_text);
-    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
-    QString title = QString::fromUtf8(String_val(v_title));
-    QString text = QString::fromUtf8(String_val(v_text));
-
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    QMessageBox::information(parent, title, text);
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
-
-    CAMLreturn(Val_unit);
+/* Button-set and answer codes shared with the OCaml layer. Kept as small ints
+   so the OCaml side owns the variant mapping. */
+static QMessageBox::StandardButtons messagebox_buttons_from_int(int code) {
+    switch (code) {
+    case 2: return QMessageBox::Ok | QMessageBox::Cancel;
+    case 3: return QMessageBox::Yes | QMessageBox::No;
+    case 4: return QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel;
+    case 5: return QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel;
+    case 6: return QMessageBox::Abort | QMessageBox::Retry | QMessageBox::Ignore;
+    case 7: return QMessageBox::Ok | QMessageBox::Apply | QMessageBox::Cancel;
+    case 8: return QMessageBox::Save | QMessageBox::Apply | QMessageBox::Cancel;
+    default: return QMessageBox::Ok;
+    }
 }
 
-CAMLprim value caml_oqt6_qmessagebox_warning(value v_parent, value v_title, value v_text) {
-    CAMLparam3(v_parent, v_title, v_text);
-    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
-    QString title = QString::fromUtf8(String_val(v_title));
-    QString text = QString::fromUtf8(String_val(v_text));
-
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    QMessageBox::warning(parent, title, text);
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
-
-    CAMLreturn(Val_unit);
+/* Returns 0 when the dialog was dismissed with no button (window closed). */
+static int messagebox_answer_to_int(QMessageBox::StandardButton b) {
+    if (b == QMessageBox::Ok)      return 1;
+    if (b == QMessageBox::Cancel)  return 2;
+    if (b == QMessageBox::Yes)     return 3;
+    if (b == QMessageBox::No)      return 4;
+    if (b == QMessageBox::Save)    return 5;
+    if (b == QMessageBox::Discard) return 6;
+    if (b == QMessageBox::Apply)   return 7;
+    if (b == QMessageBox::Reset)   return 8;
+    if (b == QMessageBox::Abort)   return 9;
+    if (b == QMessageBox::Retry)   return 10;
+    if (b == QMessageBox::Ignore)  return 11;
+    if (b == QMessageBox::Help)    return 12;
+    return 0;
 }
 
-CAMLprim value caml_oqt6_qmessagebox_critical(value v_parent, value v_title, value v_text) {
-    CAMLparam3(v_parent, v_title, v_text);
-    QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
-    QString title = QString::fromUtf8(String_val(v_title));
-    QString text = QString::fromUtf8(String_val(v_text));
-
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    QMessageBox::critical(parent, title, text);
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
-
-    CAMLreturn(Val_unit);
+static inline int opt_int(value v, int fallback) {
+    return Is_block(v) ? Int_val(Field(v, 0)) : fallback;
 }
 
-CAMLprim value caml_oqt6_qmessagebox_question(value v_parent, value v_title, value v_text) {
-    CAMLparam3(v_parent, v_title, v_text);
+static value messagebox_show(
+    value v_parent, value v_title, value v_text, value v_buttons,
+    QMessageBox::Icon icon, bool destructive_default)
+{
+    CAMLparam4(v_parent, v_title, v_text, v_buttons);
     QWidget* parent = Is_block(v_parent) ? get_qobject<QWidget>(Field(v_parent, 0)) : nullptr;
-    QString title = QString::fromUtf8(String_val(v_title));
-    QString text = QString::fromUtf8(String_val(v_text));
+    QString title = QString::fromUtf8(String_val(v_title), caml_string_length(v_title));
+    QString text = QString::fromUtf8(String_val(v_text), caml_string_length(v_text));
+    QMessageBox::StandardButtons buttons =
+        messagebox_buttons_from_int(opt_int(v_buttons, 1));
 
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    QMessageBox::StandardButton btn = QMessageBox::question(parent, title, text, QMessageBox::Yes | QMessageBox::No);
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
-
-    CAMLreturn(Val_bool(btn == QMessageBox::Yes));
+    QMessageBox::StandardButton pressed = QMessageBox::NoButton;
+    {
+        CamlBlockingSection blocking_section;
+        QMessageBox box(icon, title, text, buttons, parent);
+        /* No default button: the user must make an explicit choice rather than
+           dismissing the dialog with Return and accepting an implicit answer. */
+        box.setDefaultButton(QMessageBox::NoButton);
+        if (destructive_default) box.setEscapeButton(QMessageBox::Cancel);
+        pressed = static_cast<QMessageBox::StandardButton>(box.exec());
+    }
+    CAMLreturn(Val_int(messagebox_answer_to_int(pressed)));
 }
+
+/* messagebox_show owns its own CAML frame, so these forwarders must not wrap it
+   in CAMLreturn (that would emit a CAMLdrop with no frame in scope). */
+CAMLprim value caml_oqt6_qmessagebox_information(value v_parent, value v_title, value v_text, value v_buttons) {
+    return messagebox_show(v_parent, v_title, v_text, v_buttons, QMessageBox::Information, false);
+}
+
+CAMLprim value caml_oqt6_qmessagebox_warning(value v_parent, value v_title, value v_text, value v_buttons) {
+    return messagebox_show(v_parent, v_title, v_text, v_buttons, QMessageBox::Warning, true);
+}
+
+CAMLprim value caml_oqt6_qmessagebox_critical(value v_parent, value v_title, value v_text, value v_buttons) {
+    return messagebox_show(v_parent, v_title, v_text, v_buttons, QMessageBox::Critical, true);
+}
+
+CAMLprim value caml_oqt6_qmessagebox_question(value v_parent, value v_title, value v_text, value v_buttons) {
+    return messagebox_show(v_parent, v_title, v_text, v_buttons, QMessageBox::Question, true);
+}
+
 
 /* QFileDialog primitives */
 
@@ -2230,11 +2393,11 @@ CAMLprim value caml_oqt6_qfiledialog_get_open_file_name(value v_parent, value v_
     QString dir = Is_block(v_dir) ? QString::fromUtf8(String_val(Field(v_dir, 0))) : QString();
     QString filter = Is_block(v_filter) ? QString::fromUtf8(String_val(Field(v_filter, 0))) : QString();
 
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    QString result = QFileDialog::getOpenFileName(parent, caption, dir, filter);
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
+    QString result;
+    {
+        CamlBlockingSection blocking_section;
+        result = QFileDialog::getOpenFileName(parent, caption, dir, filter);
+    }
 
     if (result.isEmpty()) {
         CAMLreturn(Val_int(0)); // None
@@ -2253,11 +2416,11 @@ CAMLprim value caml_oqt6_qfiledialog_get_save_file_name(value v_parent, value v_
     QString dir = Is_block(v_dir) ? QString::fromUtf8(String_val(Field(v_dir, 0))) : QString();
     QString filter = Is_block(v_filter) ? QString::fromUtf8(String_val(Field(v_filter, 0))) : QString();
 
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    QString result = QFileDialog::getSaveFileName(parent, caption, dir, filter);
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
+    QString result;
+    {
+        CamlBlockingSection blocking_section;
+        result = QFileDialog::getSaveFileName(parent, caption, dir, filter);
+    }
 
     if (result.isEmpty()) {
         CAMLreturn(Val_int(0)); // None
@@ -2275,11 +2438,11 @@ CAMLprim value caml_oqt6_qfiledialog_get_existing_directory(value v_parent, valu
     QString caption = Is_block(v_caption) ? QString::fromUtf8(String_val(Field(v_caption, 0))) : QString();
     QString dir = Is_block(v_dir) ? QString::fromUtf8(String_val(Field(v_dir, 0))) : QString();
 
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    QString result = QFileDialog::getExistingDirectory(parent, caption, dir);
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
+    QString result;
+    {
+        CamlBlockingSection blocking_section;
+        result = QFileDialog::getExistingDirectory(parent, caption, dir);
+    }
 
     if (result.isEmpty()) {
         CAMLreturn(Val_int(0)); // None
@@ -2325,6 +2488,75 @@ CAMLprim value caml_oqt6_qcolor_blue(value v_c) {
 CAMLprim value caml_oqt6_qcolor_alpha(value v_c) {
     CAMLparam1(v_c);
     CAMLreturn(Val_int(QColor_val(v_c).alpha()));
+}
+
+/* An unparsable name must not yield a plausible-looking invalid colour. */
+CAMLprim value caml_oqt6_qcolor_name_checked(value v_name) {
+    CAMLparam1(v_name);
+    QString s = QString::fromUtf8(String_val(v_name));
+    QColor c(s);
+    if (!c.isValid()) {
+        caml_invalid_argument("CamlQt6.Color.name: unrecognised colour name");
+    }
+    CAMLreturn(alloc_color(c));
+}
+
+CAMLprim value caml_oqt6_qcolor_to_hex(value v_c) {
+    CAMLparam1(v_c);
+    QByteArray hex = QColor_val(v_c).name(QColor::HexArgb).toUtf8();
+    CAMLreturn(caml_alloc_initialized_string((mlsize_t)hex.size(), hex.constData()));
+}
+
+CAMLprim value caml_oqt6_qcolor_lighter(value v_c, value v_factor) {
+    CAMLparam2(v_c, v_factor);
+    int f = Int_val(v_factor);
+    QColor out = QColor_val(v_c).lighter(f);
+    if (f <= 0) out = QColor_val(v_c).darker(-f);
+    CAMLreturn(alloc_color(out));
+}
+
+CAMLprim value caml_oqt6_qcolor_darker(value v_c, value v_factor) {
+    CAMLparam2(v_c, v_factor);
+    CAMLreturn(alloc_color(QColor_val(v_c).darker(Int_val(v_factor))));
+}
+
+CAMLprim value caml_oqt6_qcolor_hsv(value v_c) {
+    CAMLparam1(v_c);
+    int h, s, vv;
+    QColor_val(v_c).getHsv(&h, &s, &vv);
+    CAMLlocal1(v_triple);
+    v_triple = caml_alloc_tuple(3);
+    Store_field(v_triple, 0, Val_int(h));
+    Store_field(v_triple, 1, Val_int(s));
+    Store_field(v_triple, 2, Val_int(vv));
+    CAMLreturn(v_triple);
+}
+
+CAMLprim value caml_oqt6_qcolor_hsl(value v_c) {
+    CAMLparam1(v_c);
+    int h, s, l;
+    QColor_val(v_c).getHsl(&h, &s, &l);
+    CAMLlocal1(v_triple);
+    v_triple = caml_alloc_tuple(3);
+    Store_field(v_triple, 0, Val_int(h));
+    Store_field(v_triple, 1, Val_int(s));
+    Store_field(v_triple, 2, Val_int(l));
+    CAMLreturn(v_triple);
+}
+
+CAMLprim value caml_oqt6_qcolor_from_hsv(value v_h, value v_s, value v_v) {
+    CAMLparam3(v_h, v_s, v_v);
+    CAMLreturn(alloc_color(QColor::fromHsv(Int_val(v_h), Int_val(v_s), Int_val(v_v))));
+}
+
+CAMLprim value caml_oqt6_qcolor_from_hsl(value v_h, value v_s, value v_l) {
+    CAMLparam3(v_h, v_s, v_l);
+    CAMLreturn(alloc_color(QColor::fromHsl(Int_val(v_h), Int_val(v_s), Int_val(v_l))));
+}
+
+CAMLprim value caml_oqt6_qcolor_is_valid(value v_c) {
+    CAMLparam1(v_c);
+    CAMLreturn(Val_bool(QColor_val(v_c).isValid()));
 }
 
 /* QFont primitives */
@@ -2392,7 +2624,138 @@ CAMLprim value caml_oqt6_qfont_set_italic(value v_f, value v_b) {
     CAMLreturn(Val_unit);
 }
 
+CAMLprim value caml_oqt6_qfont_weight(value v_f) {
+    CAMLparam1(v_f);
+    CAMLreturn(Val_int((int)Font_val(v_f).weight()));
+}
+
+CAMLprim value caml_oqt6_qfont_set_weight(value v_f, value v_w) {
+    CAMLparam2(v_f, v_w);
+    Font_val(v_f).setWeight((QFont::Weight)Int_val(v_w));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qfont_underline(value v_f) {
+    CAMLparam1(v_f);
+    CAMLreturn(Val_bool(Font_val(v_f).underline()));
+}
+
+CAMLprim value caml_oqt6_qfont_set_underline(value v_f, value v_b) {
+    CAMLparam2(v_f, v_b);
+    Font_val(v_f).setUnderline(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qfont_strikeout(value v_f) {
+    CAMLparam1(v_f);
+    CAMLreturn(Val_bool(Font_val(v_f).strikeOut()));
+}
+
+CAMLprim value caml_oqt6_qfont_set_strikeout(value v_f, value v_b) {
+    CAMLparam2(v_f, v_b);
+    Font_val(v_f).setStrikeOut(Bool_val(v_b));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qfont_point_size_f(value v_f) {
+    CAMLparam1(v_f);
+    CAMLreturn(caml_copy_double(Font_val(v_f).pointSizeF()));
+}
+
+CAMLprim value caml_oqt6_qfont_set_letter_spacing(value v_f, value v_spacing) {
+    CAMLparam2(v_f, v_spacing);
+    Font_val(v_f).setLetterSpacing(QFont::AbsoluteSpacing, Double_val(v_spacing));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qfont_letter_spacing(value v_f) {
+    CAMLparam1(v_f);
+    CAMLreturn(caml_copy_double(Font_val(v_f).letterSpacing()));
+}
+
 /* QPen primitives */
+
+/* QPen primitives */
+
+/* CamlQt6 uses its own small integer encodings for enums so the OCaml side owns
+   the variant mapping; these helpers are the single place they are translated. */
+static Qt::PenStyle pen_style_from_int(int code) {
+    switch (code) {
+    case 1: return Qt::DashLine;
+    case 2: return Qt::DotLine;
+    case 3: return Qt::NoPen;
+    case 4: return Qt::DashDotLine;
+    case 5: return Qt::DashDotDotLine;
+    default: return Qt::SolidLine;
+    }
+}
+
+static int pen_style_to_int(Qt::PenStyle s) {
+    switch (s) {
+    case Qt::DashLine: return 1;
+    case Qt::DotLine: return 2;
+    case Qt::NoPen: return 3;
+    case Qt::DashDotLine: return 4;
+    case Qt::DashDotDotLine: return 5;
+    default: return 0;
+    }
+}
+
+static Qt::BrushStyle brush_style_from_int(int code) {
+    switch (code) {
+    case 1: return Qt::NoBrush;
+    case 2: return Qt::Dense5Pattern;
+    case 3: return Qt::Dense7Pattern;
+    case 4: return Qt::CrossPattern;
+    case 5: return Qt::VerPattern;
+    case 6: return Qt::HorPattern;
+    default: return Qt::SolidPattern;
+    }
+}
+
+static int brush_style_to_int(Qt::BrushStyle s) {
+    switch (s) {
+    case Qt::NoBrush: return 1;
+    case Qt::Dense5Pattern: return 2;
+    case Qt::Dense7Pattern: return 3;
+    case Qt::CrossPattern: return 4;
+    case Qt::VerPattern: return 5;
+    case Qt::HorPattern: return 6;
+    default: return 0;
+    }
+}
+
+static Qt::PenCapStyle cap_style_from_int(int code) {
+    switch (code) {
+    case 1: return Qt::FlatCap;
+    case 2: return Qt::SquareCap;
+    default: return Qt::RoundCap;
+    }
+}
+
+static int cap_style_to_int(Qt::PenCapStyle s) {
+    switch (s) {
+    case Qt::FlatCap: return 1;
+    case Qt::SquareCap: return 2;
+    default: return 0;
+    }
+}
+
+static Qt::PenJoinStyle join_style_from_int(int code) {
+    switch (code) {
+    case 1: return Qt::BevelJoin;
+    case 2: return Qt::MiterJoin;
+    default: return Qt::RoundJoin;
+    }
+}
+
+static int join_style_to_int(Qt::PenJoinStyle s) {
+    switch (s) {
+    case Qt::BevelJoin: return 1;
+    case Qt::MiterJoin: return 2;
+    default: return 0;
+    }
+}
 
 CAMLprim value caml_oqt6_qpen_create(value v_color, value v_width, value v_style) {
     CAMLparam3(v_color, v_width, v_style);
@@ -2404,12 +2767,7 @@ CAMLprim value caml_oqt6_qpen_create(value v_color, value v_width, value v_style
         pen.setWidth(Int_val(Field(v_width, 0)));
     }
     if (Is_block(v_style)) {
-        int s = Int_val(Field(v_style, 0));
-        Qt::PenStyle ps = Qt::SolidLine;
-        if (s == 1) ps = Qt::DashLine;
-        else if (s == 2) ps = Qt::DotLine;
-        else if (s == 3) ps = Qt::NoPen;
-        pen.setStyle(ps);
+        pen.setStyle(pen_style_from_int(Int_val(Field(v_style, 0))));
     }
     CAMLreturn(alloc_pen(pen));
 }
@@ -2428,12 +2786,58 @@ CAMLprim value caml_oqt6_qpen_set_width(value v_p, value v_w) {
 
 CAMLprim value caml_oqt6_qpen_set_style(value v_p, value v_style) {
     CAMLparam2(v_p, v_style);
-    int s = Int_val(v_style);
-    Qt::PenStyle ps = Qt::SolidLine;
-    if (s == 1) ps = Qt::DashLine;
-    else if (s == 2) ps = Qt::DotLine;
-    else if (s == 3) ps = Qt::NoPen;
-    Pen_val(v_p).setStyle(ps);
+    Pen_val(v_p).setStyle(pen_style_from_int(Int_val(v_style)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpen_style(value v_p) {
+    CAMLparam1(v_p);
+    CAMLreturn(Val_int(pen_style_to_int(Pen_val(v_p).style())));
+}
+
+CAMLprim value caml_oqt6_qpen_color(value v_p) {
+    CAMLparam1(v_p);
+    CAMLreturn(alloc_color(Pen_val(v_p).color()));
+}
+
+CAMLprim value caml_oqt6_qpen_width(value v_p) {
+    CAMLparam1(v_p);
+    CAMLreturn(Val_int(Pen_val(v_p).width()));
+}
+
+CAMLprim value caml_oqt6_qpen_set_cap_style(value v_p, value v_style) {
+    CAMLparam2(v_p, v_style);
+    Pen_val(v_p).setCapStyle(cap_style_from_int(Int_val(v_style)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpen_cap_style(value v_p) {
+    CAMLparam1(v_p);
+    CAMLreturn(Val_int(cap_style_to_int(Pen_val(v_p).capStyle())));
+}
+
+CAMLprim value caml_oqt6_qpen_set_join_style(value v_p, value v_style) {
+    CAMLparam2(v_p, v_style);
+    Pen_val(v_p).setJoinStyle(join_style_from_int(Int_val(v_style)));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpen_join_style(value v_p) {
+    CAMLparam1(v_p);
+    CAMLreturn(Val_int(join_style_to_int(Pen_val(v_p).joinStyle())));
+}
+
+CAMLprim value caml_oqt6_qpen_set_dash_pattern(value v_p, value v_pattern) {
+    CAMLparam2(v_p, v_pattern);
+    QList<qreal> dashes;
+    CAMLlocal2(cur, head);
+    head = v_pattern;
+    while (Is_block(head) && Tag_val(head) == 0) {
+        cur = Field(head, 0);
+        dashes.append(Double_val(cur));
+        head = Field(head, 1);
+    }
+    Pen_val(v_p).setDashPattern(dashes);
     CAMLreturn(Val_unit);
 }
 
@@ -2448,7 +2852,7 @@ CAMLprim value caml_oqt6_qbrush_create(value v_color, value v_style) {
     }
     if (Is_block(v_style)) {
         int s = Int_val(Field(v_style, 0));
-        brush.setStyle(s == 0 ? Qt::SolidPattern : Qt::NoBrush);
+        brush.setStyle(brush_style_from_int(s));
     }
     CAMLreturn(alloc_brush(brush));
 }
@@ -2462,9 +2866,18 @@ CAMLprim value caml_oqt6_qbrush_set_color(value v_b, value v_c) {
 
 CAMLprim value caml_oqt6_qbrush_set_style(value v_b, value v_s) {
     CAMLparam2(v_b, v_s);
-    int s = Int_val(v_s);
-    Brush_val(v_b).setStyle(s == 0 ? Qt::SolidPattern : Qt::NoBrush);
+    Brush_val(v_b).setStyle(brush_style_from_int(Int_val(v_s)));
     CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qbrush_style(value v_b) {
+    CAMLparam1(v_b);
+    CAMLreturn(Val_int(brush_style_to_int(Brush_val(v_b).style())));
+}
+
+CAMLprim value caml_oqt6_qbrush_color(value v_b) {
+    CAMLparam1(v_b);
+    CAMLreturn(alloc_color(Brush_val(v_b).color()));
 }
 
 /* QPainter primitives */
@@ -2484,6 +2897,26 @@ CAMLprim value caml_oqt6_qpainter_set_brush(value v_p, value v_brush) {
 CAMLprim value caml_oqt6_qpainter_set_font(value v_p, value v_font) {
     CAMLparam2(v_p, v_font);
     get_painter(v_p)->setFont(Font_val(v_font));
+    CAMLreturn(Val_unit);
+}
+
+static QPainter::RenderHint render_hint_from_int(int code) {
+    switch (code) {
+    case 1: return QPainter::TextAntialiasing;
+    case 2: return QPainter::SmoothPixmapTransform;
+    default: return QPainter::Antialiasing;
+    }
+}
+
+CAMLprim value caml_oqt6_qpainter_set_render_hint(value v_p, value v_hint, value v_on) {
+    CAMLparam3(v_p, v_hint, v_on);
+    get_painter(v_p)->setRenderHint(render_hint_from_int(Int_val(v_hint)), Bool_val(v_on));
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_set_opacity(value v_p, value v_opacity) {
+    CAMLparam2(v_p, v_opacity);
+    get_painter(v_p)->setOpacity(Double_val(v_opacity));
     CAMLreturn(Val_unit);
 }
 
@@ -2533,6 +2966,114 @@ CAMLprim value caml_oqt6_qpainter_draw_text(value v_p, value v_x, value v_y, val
     CAMLparam4(v_p, v_x, v_y, v_text);
     get_painter(v_p)->drawText(Int_val(v_x), Int_val(v_y), QString::fromUtf8(String_val(v_text)));
     CAMLreturn(Val_unit);
+}
+
+/* int -> int -> int -> int -> int */
+static void read_points(value v, QPolygon* out) {
+    CAMLparam1(v);
+    CAMLlocal3(cur, head, tail);
+    out->clear();
+    /* head is the list of (x, y) pairs; each pair is a 2-field block. Walked with
+       an explicit tag check so a malformed list cannot loop or read wild memory. */
+    head = v;
+    while (Is_block(head) && Tag_val(head) == 0) {
+        value pair = Field(head, 0);
+        if (Is_block(pair) && Wosize_val(pair) >= 2) {
+            out->append(QPoint(Int_val(Field(pair, 0)), Int_val(Field(pair, 1))));
+        }
+        head = Field(head, 1);
+    }
+}
+
+static void read_floats(value v, QPolygonF* out) {
+    CAMLparam1(v);
+    CAMLlocal2(head, item);
+    out->clear();
+    head = v;
+    while (Is_block(head) && Tag_val(head) == 0) {
+        item = Field(head, 0);
+        out->append(QPointF(Double_val(Field(item, 0)), Double_val(Field(item, 1))));
+        head = Field(head, 1);
+    }
+}
+
+CAMLprim value caml_oqt6_qpainter_draw_polyline(value v_p, value v_points) {
+    CAMLparam2(v_p, v_points);
+    QPolygonF poly;
+    read_floats(Field(v_points, 0), &poly);
+    get_painter(v_p)->drawPolyline(poly);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_draw_polygon(value v_p, value v_points) {
+    CAMLparam2(v_p, v_points);
+    QPolygonF poly;
+    read_floats(Field(v_points, 0), &poly);
+    get_painter(v_p)->drawPolygon(poly);
+    CAMLreturn(Val_unit);
+}
+
+/* rect (x, y, w, h) + start angle + span angle, all in 1/16th degree */
+CAMLprim value caml_oqt6_qpainter_fill_rect_with_brush(value v_p, value v_x, value v_y,
+                                                      value v_w, value v_h) {
+    /* Fill using the current brush; Painter.fill_rect takes an explicit colour.
+       Qt 6 has no fillRect(x, y, w, h) overload, so pass a QRectF plus the
+       painter's current brush. */
+    CAMLparam5(v_p, v_x, v_y, v_w, v_h);
+    QPainter* p = get_painter(v_p);
+    p->fillRect(
+        QRectF(Int_val(v_x), Int_val(v_y), Int_val(v_w), Int_val(v_h)), p->brush());
+    CAMLreturn(Val_unit);
+}
+
+/* rect (x, y, w, h) as a 4-tuple + start angle + span angle in degrees.
+   Four OCaml arguments keeps this within the 5-argument limit for native stubs,
+   and the degrees -> 1/16th-degree conversion lives here. */
+static void draw_arc_or_pie(bool pie, value v_p, value v_rect,
+                            value v_start_deg, value v_span_deg) {
+    if (!Is_block(v_rect) || Wosize_val(v_rect) < 4) {
+        caml_invalid_argument(
+            pie ? "CamlQt6.Painter.draw_pie: expected (x, y, width, height)"
+            : "CamlQt6.Painter.draw_arc: expected (x, y, width, height)");
+    }
+    int x = Int_val(Field(v_rect, 0)), y = Int_val(Field(v_rect, 1));
+    int w = Int_val(Field(v_rect, 2)), h = Int_val(Field(v_rect, 3));
+    int start = (int)(Double_val(v_start_deg) * 16.0);
+    int span = (int)(Double_val(v_span_deg) * 16.0);
+    QPainter* p = get_painter(v_p);
+    if (pie) p->drawPie(x, y, w, h, start, span);
+    else p->drawArc(x, y, w, h, start, span);
+}
+
+CAMLprim value caml_oqt6_qpainter_draw_arc(value v_p, value v_rect,
+                                           value v_start_deg, value v_span_deg) {
+    CAMLparam4(v_p, v_rect, v_start_deg, v_span_deg);
+    draw_arc_or_pie(false, v_p, v_rect, v_start_deg, v_span_deg);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_qpainter_draw_pie(value v_p, value v_rect,
+                                          value v_start_deg, value v_span_deg) {
+    CAMLparam4(v_p, v_rect, v_start_deg, v_span_deg);
+    draw_arc_or_pie(true, v_p, v_rect, v_start_deg, v_span_deg);
+    CAMLreturn(Val_unit);
+}
+
+/* Returns the bounding box as (x, y, width, height).
+   Qt 6 removed QPainter::boundingRect(QString), so this goes through
+   QFontMetricsF with the painter's current font. */
+CAMLprim value caml_oqt6_qpainter_bounding_rect(value v_p, value v_text) {
+    CAMLparam2(v_p, v_text);
+    QPainter* p = get_painter(v_p);
+    QFontMetricsF fm(p->font());
+    QRectF r = fm.boundingRect(QString::fromUtf8(String_val(v_text)));
+    CAMLlocal1(v_pair);
+    v_pair = caml_alloc_tuple(4);
+    Store_field(v_pair, 0, Val_int((int)r.x()));
+    Store_field(v_pair, 1, Val_int((int)r.y()));
+    Store_field(v_pair, 2, Val_int((int)r.width()));
+    Store_field(v_pair, 3, Val_int((int)r.height()));
+    CAMLreturn(v_pair);
 }
 
 CAMLprim value caml_oqt6_qpainter_save(value v_p) {
@@ -2715,36 +3256,70 @@ CAMLprim value caml_oqt6_tablemodel_create(value v_parent) {
     CAMLreturn(alloc_qobject(m, !Is_block(v_parent)));
 }
 
+/* The optional per-cell role callbacks all follow the same shape, so they share
+   one setter. Each returns an option; [None] means "no opinion" and the view
+   falls back to its own styling. */
+static void set_opt_root(value** slot, value v) {
+    if (Is_block(v)) set_root(slot, Field(v, 0));
+}
+
 CAMLprim value caml_oqt6_tablemodel_set_callbacks(value v_m, value v_rc, value v_cc, value v_data, value v_header) {
     CAMLparam5(v_m, v_rc, v_cc, v_data, v_header);
     OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
+    set_root(&m->row_count_cb, v_rc);
+    set_root(&m->col_count_cb, v_cc);
+    set_root(&m->data_cb, v_data);
+    set_opt_root(&m->header_data_cb, v_header);
+    CAMLreturn(Val_unit);
+}
 
-    if (!m->row_count_cb) {
-        m->row_count_cb = new value;
-        caml_register_global_root(m->row_count_cb);
-    }
-    *m->row_count_cb = v_rc;
+CAMLprim value caml_oqt6_tablemodel_set_sort(value v_m, value v_cb) {
+    CAMLparam2(v_m, v_cb);
+    OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
+    set_opt_root(&m->sort_cb, v_cb);
+    CAMLreturn(Val_unit);
+}
 
-    if (!m->col_count_cb) {
-        m->col_count_cb = new value;
-        caml_register_global_root(m->col_count_cb);
-    }
-    *m->col_count_cb = v_cc;
+CAMLprim value caml_oqt6_tablemodel_set_foreground(value v_m, value v_cb) {
+    CAMLparam2(v_m, v_cb);
+    OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
+    set_opt_root(&m->foreground_cb, v_cb);
+    CAMLreturn(Val_unit);
+}
 
-    if (!m->data_cb) {
-        m->data_cb = new value;
-        caml_register_global_root(m->data_cb);
-    }
-    *m->data_cb = v_data;
+CAMLprim value caml_oqt6_tablemodel_set_background(value v_m, value v_cb) {
+    CAMLparam2(v_m, v_cb);
+    OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
+    set_opt_root(&m->background_cb, v_cb);
+    CAMLreturn(Val_unit);
+}
 
-    if (Is_block(v_header)) {
-        if (!m->header_data_cb) {
-            m->header_data_cb = new value;
-            caml_register_global_root(m->header_data_cb);
-        }
-        *m->header_data_cb = Field(v_header, 0);
-    }
+CAMLprim value caml_oqt6_tablemodel_set_alignment(value v_m, value v_cb) {
+    CAMLparam2(v_m, v_cb);
+    OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
+    set_opt_root(&m->alignment_cb, v_cb);
+    CAMLreturn(Val_unit);
+}
 
+CAMLprim value caml_oqt6_tablemodel_set_decoration(value v_m, value v_cb) {
+    CAMLparam2(v_m, v_cb);
+    OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
+    set_opt_root(&m->decoration_cb, v_cb);
+    CAMLreturn(Val_unit);
+}
+
+CAMLprim value caml_oqt6_tablemodel_set_tooltip(value v_m, value v_cb) {
+    CAMLparam2(v_m, v_cb);
+    OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
+    set_opt_root(&m->tooltip_cb, v_cb);
+    CAMLreturn(Val_unit);
+}
+
+/* Trigger a sort from OCaml, e.g. after the underlying data changed. */
+CAMLprim value caml_oqt6_tablemodel_sort(value v_m, value v_col, value v_desc) {
+    CAMLparam3(v_m, v_col, v_desc);
+    OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
+    m->sort(Int_val(v_col), Bool_val(v_desc) ? Qt::DescendingOrder : Qt::AscendingOrder);
     CAMLreturn(Val_unit);
 }
 
@@ -2760,6 +3335,70 @@ CAMLprim value caml_oqt6_tablemodel_notify_data_changed(value v_m, value v_tr, v
     OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
     m->notify_data_changed(Int_val(v_tr), Int_val(v_lc), Int_val(v_br), Int_val(v_rc));
     CAMLreturn(Val_unit);
+}
+
+/* Read-only accessors that go through Qt's own dispatch (rowCount / data /
+   headerData) rather than calling the OCaml closures directly. This is the same
+   code path a view uses when painting, which makes the zero-copy contract
+   observable and testable from OCaml instead of only from C++. */
+
+static value qvariant_to_string_option(const QVariant& v) {
+    CAMLparam0();
+    /* OCamlTableModel only ever produces a QString QVariant or an invalid one,
+       so validity is the only check needed (QVariant::type() is deprecated). */
+    if (!v.isValid()) {
+        CAMLreturn(Val_int(0));
+    }
+    QByteArray utf8 = v.toString().toUtf8();
+    CAMLlocal2(v_str, some);
+    v_str = caml_alloc_initialized_string((mlsize_t)utf8.size(), utf8.constData());
+    some = caml_alloc_some(v_str);
+    CAMLreturn(some);
+}
+
+CAMLprim value caml_oqt6_tablemodel_row_count(value v_m) {
+    CAMLparam1(v_m);
+    OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
+    int n;
+    {
+        CamlBlockingSection blocking_section;
+        n = m->rowCount();
+    }
+    CAMLreturn(Val_int(n));
+}
+
+CAMLprim value caml_oqt6_tablemodel_column_count(value v_m) {
+    CAMLparam1(v_m);
+    OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
+    int n;
+    {
+        CamlBlockingSection blocking_section;
+        n = m->columnCount();
+    }
+    CAMLreturn(Val_int(n));
+}
+
+CAMLprim value caml_oqt6_tablemodel_data(value v_m, value v_row, value v_col) {
+    CAMLparam3(v_m, v_row, v_col);
+    OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
+    QVariant res;
+    {
+        CamlBlockingSection blocking_section;
+        res = m->data(m->index(Int_val(v_row), Int_val(v_col)), Qt::DisplayRole);
+    }
+    CAMLreturn(qvariant_to_string_option(res));
+}
+
+CAMLprim value caml_oqt6_tablemodel_header_data(value v_m, value v_section, value v_orient) {
+    CAMLparam3(v_m, v_section, v_orient);
+    OCamlTableModel* m = get_qobject<OCamlTableModel>(v_m);
+    Qt::Orientation orient = Int_val(v_orient) == 0 ? Qt::Horizontal : Qt::Vertical;
+    QVariant res;
+    {
+        CamlBlockingSection blocking_section;
+        res = m->headerData(Int_val(v_section), orient, Qt::DisplayRole);
+    }
+    CAMLreturn(qvariant_to_string_option(res));
 }
 
 /* QStandardItemModel primitives */
@@ -2945,7 +3584,16 @@ CAMLprim value caml_oqt6_qtableview_vertical_header(value v_v) {
 CAMLprim value caml_oqt6_qtableview_selection_model(value v_v) {
     CAMLparam1(v_v);
     QTableView* v = get_qobject<QTableView>(v_v);
-    CAMLreturn(alloc_qobject(v->selectionModel(), false));
+    /* selectionModel() is null once the view's model has been torn down;
+       report that as None rather than handing back a dangling handle. */
+    QItemSelectionModel* sm = v->selectionModel();
+    if (sm == nullptr) {
+        CAMLreturn(Val_int(0));
+    }
+    CAMLlocal2(v_sm, some);
+    v_sm = alloc_qobject(sm, false);
+    some = caml_alloc_some(v_sm);
+    CAMLreturn(some);
 }
 
 CAMLprim value caml_oqt6_qtableview_connect_clicked(value v_v, value v_cb) {
@@ -3052,7 +3700,16 @@ CAMLprim value caml_oqt6_qtreeview_header(value v_v) {
 CAMLprim value caml_oqt6_qtreeview_selection_model(value v_v) {
     CAMLparam1(v_v);
     QTreeView* v = get_qobject<QTreeView>(v_v);
-    CAMLreturn(alloc_qobject(v->selectionModel(), false));
+    /* selectionModel() is null once the view's model has been torn down;
+       report that as None rather than handing back a dangling handle. */
+    QItemSelectionModel* sm = v->selectionModel();
+    if (sm == nullptr) {
+        CAMLreturn(Val_int(0));
+    }
+    CAMLlocal2(v_sm, some);
+    v_sm = alloc_qobject(sm, false);
+    some = caml_alloc_some(v_sm);
+    CAMLreturn(some);
 }
 
 CAMLprim value caml_oqt6_qtreeview_connect_clicked(value v_v, value v_cb) {
@@ -3107,7 +3764,16 @@ CAMLprim value caml_oqt6_qlistview_set_selection_mode(value v_v, value v_mode) {
 CAMLprim value caml_oqt6_qlistview_selection_model(value v_v) {
     CAMLparam1(v_v);
     QListView* v = get_qobject<QListView>(v_v);
-    CAMLreturn(alloc_qobject(v->selectionModel(), false));
+    /* selectionModel() is null once the view's model has been torn down;
+       report that as None rather than handing back a dangling handle. */
+    QItemSelectionModel* sm = v->selectionModel();
+    if (sm == nullptr) {
+        CAMLreturn(Val_int(0));
+    }
+    CAMLlocal2(v_sm, some);
+    v_sm = alloc_qobject(sm, false);
+    some = caml_alloc_some(v_sm);
+    CAMLreturn(some);
 }
 
 CAMLprim value caml_oqt6_qlistview_connect_clicked(value v_v, value v_cb) {
@@ -3754,11 +4420,11 @@ CAMLprim value caml_oqt6_qcolordialog_get_color(value v_parent, value v_initial,
     QColor initial = Is_block(v_initial) ? QColor_val(Field(v_initial, 0)) : Qt::white;
     QString title = Is_block(v_title) ? QString::fromUtf8(String_val(Field(v_title, 0))) : QString();
 
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    QColor res = QColorDialog::getColor(initial, parent, title);
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
+    QColor res;
+    {
+        CamlBlockingSection blocking_section;
+        res = QColorDialog::getColor(initial, parent, title);
+    }
 
     if (!res.isValid()) {
         CAMLreturn(Val_int(0));
@@ -3776,11 +4442,11 @@ CAMLprim value caml_oqt6_qfontdialog_get_font(value v_parent, value v_initial, v
     QString title = Is_block(v_title) ? QString::fromUtf8(String_val(Field(v_title, 0))) : QString();
 
     bool ok = false;
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    QFont res = QFontDialog::getFont(&ok, initial, parent, title);
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
+    QFont res;
+    {
+        CamlBlockingSection blocking_section;
+        res = QFontDialog::getFont(&ok, initial, parent, title);
+    }
 
     if (!ok) {
         CAMLreturn(Val_int(0));
@@ -3799,11 +4465,11 @@ CAMLprim value caml_oqt6_qinputdialog_get_text(value v_parent, value v_title, va
     QString initial = Is_block(v_initial) ? QString::fromUtf8(String_val(Field(v_initial, 0))) : QString();
 
     bool ok = false;
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    QString res = QInputDialog::getText(parent, title, label, QLineEdit::Normal, initial, &ok);
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
+    QString res;
+    {
+        CamlBlockingSection blocking_section;
+        res = QInputDialog::getText(parent, title, label, QLineEdit::Normal, initial, &ok);
+    }
 
     if (!ok) {
         CAMLreturn(Val_int(0));
@@ -3827,11 +4493,11 @@ CAMLprim value caml_oqt6_qinputdialog_get_int(value v_parent, value v_title, val
     int step = Is_block(v_step) ? Int_val(Field(v_step, 0)) : 1;
 
     bool ok = false;
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    int res = QInputDialog::getInt(parent, title, label, val, min_val, max_val, step, &ok);
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
+    int res;
+    {
+        CamlBlockingSection blocking_section;
+        res = QInputDialog::getInt(parent, title, label, val, min_val, max_val, step, &ok);
+    }
 
     if (!ok) {
         CAMLreturn(Val_int(0));
@@ -3863,11 +4529,11 @@ CAMLprim value caml_oqt6_qinputdialog_get_item(value v_parent, value v_title, va
     }
 
     bool ok = false;
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    QString res = QInputDialog::getItem(parent, title, label, items, current, editable, &ok);
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
+    QString res;
+    {
+        CamlBlockingSection blocking_section;
+        res = QInputDialog::getItem(parent, title, label, items, current, editable, &ok);
+    }
 
     if (!ok) {
         CAMLreturn(Val_int(0));
@@ -4188,7 +4854,9 @@ CAMLprim value caml_oqt6_qdrag_create(value v_parent) {
     CAMLparam1(v_parent);
     QWidget* parent = get_qobject<QWidget>(v_parent);
     QDrag* drag = new QDrag(parent);
-    CAMLreturn(alloc_qobject(drag, true));
+    /* The parent widget owns it: a GC finalizer calling deleteLater() on a QDrag
+       that is mid-exec() aborts an in-progress drag. */
+    CAMLreturn(alloc_qobject(drag, false));
 }
 
 CAMLprim value caml_oqt6_qdrag_set_mime_data(value v_drag, value v_mime) {
@@ -4236,11 +4904,11 @@ CAMLprim value caml_oqt6_qdrag_exec(value v_drag, value v_actions) {
     else if (act_int == 2) actions = Qt::LinkAction;
     else if (act_int == 3) actions = Qt::CopyAction | Qt::MoveAction;
 
-    thread_domain_lock_depth--;
-    caml_release_runtime_system();
-    Qt::DropAction res = drag->exec(actions);
-    caml_acquire_runtime_system();
-    thread_domain_lock_depth++;
+    Qt::DropAction res;
+    {
+        CamlBlockingSection blocking_section;
+        res = drag->exec(actions);
+    }
 
     int out = 0; // Ignore
     if (res == Qt::CopyAction) out = 1;
@@ -4375,7 +5043,7 @@ CAMLprim value caml_oqt6_clipboard_connect_changed(value v_cb) {
     CAMLparam1(v_cb);
     QClipboard* cb = QGuiApplication::clipboard();
     if (!cb) {
-        caml_failwith("Oqt6: QClipboard is not available (QApplication not initialized)");
+        caml_failwith("CamlQt6: QClipboard is not available (QApplication not initialized)");
     }
     value* root = new value;
     *root = v_cb;

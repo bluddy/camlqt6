@@ -1,6 +1,6 @@
-(** OQt6: Cross-Platform Qt 6 Bindings for OCaml
+(** CamlQt6: Cross-Platform Qt 6 Bindings for OCaml
 
-    OQt6 provides safe, type-checked, and idiomatic OCaml bindings for Qt 6,
+    CamlQt6 provides safe, type-checked, and idiomatic OCaml bindings for Qt 6,
     supporting both imperative widget construction and reactive declarative UIs. *)
 
 (** {1 Core Modules} *)

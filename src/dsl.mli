@@ -1,4 +1,4 @@
-(** OQt6 DSL: Declarative and Reactive UI Framework for Qt 6 *)
+(** CamlQt6 DSL: Declarative and Reactive UI Framework for Qt 6 *)
 
 (** Reactive state management and signals. *)
 module State : sig
@@ -8,13 +8,22 @@ module State : sig
   (** A subscription handle used to cancel subscriptions. *)
   type subscription
 
-  (** [create initial] creates a new reactive state with the given initial value. *)
-  val create : 'a -> 'a t
+  (** [create ?eq initial] creates a new reactive state with the given initial value.
+
+      [eq] decides whether a write counts as a change, and therefore suppresses
+      redundant notifications. It defaults to polymorphic equality ([( = )]),
+      which is unsuitable for some values and must be supplied for others:
+      [nan] (every write notifies, since [( <> ) nan nan] holds), values
+      containing functions (never equal, so every write notifies), cyclic values
+      ([( = )] diverges), and large values (a deep compare on every write).
+      Pass [Float.equal] or a domain-specific comparator in those cases. *)
+  val create : ?eq:('a -> 'a -> bool) -> 'a -> 'a t
 
   (** [get state] retrieves the current value of the state. *)
   val get : 'a t -> 'a
 
-  (** [set state new_value] updates the state and notifies all subscribers if [new_value <> current_value]. *)
+  (** [set state new_value] updates the state and notifies all subscribers
+      unless [eq current new_value] holds. *)
   val set : 'a t -> 'a -> unit
 
   (** [update state f] updates the state by applying [f] to the current value. *)
@@ -31,11 +40,15 @@ module State : sig
       and subsequently whenever the value changes. *)
   val subscribe : 'a t -> ('a -> unit) -> unit
 
-  (** [map f state] creates a derived state whose value is always [f (State.get state)]. *)
-  val map : ('a -> 'b) -> 'a t -> 'b t
+  (** [map ?eq f state] creates a derived state whose value is always [f (State.get state)].
 
-  (** [map2 f s1 s2] creates a derived state whose value is computed from two independent states. *)
-  val map2 : ('a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t
+      The subscription to [state] is permanent and its handle is not returned, so
+      [state] keeps the derived state alive for as long as [state] itself. *)
+  val map : ?eq:('b -> 'b -> bool) -> ('a -> 'b) -> 'a t -> 'b t
+
+  (** [map2 ?eq f s1 s2] creates a derived state whose value is computed from two
+      independent states. Same subscription lifetime caveat as {!map}. *)
+  val map2 : ?eq:('c -> 'c -> bool) -> ('a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t
 end
 
 (** A declarative UI node specification. *)
@@ -117,8 +130,10 @@ val progress_bar : ?min:int -> ?max:int -> ?value:int State.t -> ?format:string 
 (** [combo_box ~items ?current ?on_change ()] creates a drop-down selection box. *)
 val combo_box : items:string list -> ?current:int State.t -> ?on_change:(int -> unit) -> unit -> node
 
-(** [canvas ?width ?height ~on_paint ...] creates an interactive 2D graphics canvas. *)
-val canvas : ?width:int -> ?height:int -> on_paint:(Gui.Painter.t -> unit) -> ?on_mouse_move:(Widgets.mouse_event -> unit) -> ?on_mouse_press:(Widgets.mouse_event -> unit) -> ?on_mouse_release:(Widgets.mouse_event -> unit) -> ?on_key_press:(Widgets.key_event -> unit) -> unit -> node
+(** [canvas ?width ?height ?antialiasing ~on_paint ...] creates an interactive 2D
+    graphics canvas. Antialiasing is on by default: Qt leaves every render hint
+    off by default, and hand-drawn output is visibly jagged without it. *)
+val canvas : ?width:int -> ?height:int -> ?antialiasing:bool -> on_paint:(Gui.Painter.t -> unit) -> ?on_mouse_move:(Widgets.mouse_event -> unit) -> ?on_mouse_press:(Widgets.mouse_event -> unit) -> ?on_mouse_release:(Widgets.mouse_event -> unit) -> ?on_key_press:(Widgets.key_event -> unit) -> unit -> node
 
 (** [custom f] embeds an arbitrary imperative widget creation function into the declarative tree. *)
 val custom : (parent:Widgets.qwidget Core.t option -> Widgets.qwidget Core.t) -> node

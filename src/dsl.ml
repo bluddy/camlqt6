@@ -1,4 +1,4 @@
-(** OQt6 DSL: Declarative and Reactive UI Framework for Qt 6 *)
+(** CamlQt6 DSL: Declarative and Reactive UI Framework for Qt 6 *)
 
 module State = struct
   type subscription = int
@@ -10,13 +10,27 @@ module State = struct
 
   type 'a t = {
     mutex : Mutex.t;
+    eq : 'a -> 'a -> bool;
     mutable value : 'a;
     mutable listeners : 'a listener list;
     mutable next_id : int;
   }
 
-  let create initial = {
+  (** [create ?eq initial] creates a reactive value holding [initial].
+
+      [eq] decides whether a new value counts as a change and is used to suppress
+      redundant notifications. It defaults to polymorphic equality, which is
+      wrong for some values and must be overridden for others:
+
+      - [nan]: [( <> ) nan nan] is true, so every write notifies.
+      - values containing functions: [=] is always false, so every write notifies.
+      - cyclic values: [=] diverges.
+      - large values: the comparison is deep and runs on every write.
+
+      Pass [Float.equal], or a domain-specific comparator, in those cases. *)
+  let create ?(eq = ( = )) initial = {
     mutex = Mutex.create ();
+    eq;
     value = initial;
     listeners = [];
     next_id = 0;
@@ -31,7 +45,7 @@ module State = struct
   let set s new_val =
     let to_notify =
       Mutex.lock s.mutex;
-      if s.value <> new_val then begin
+      if not (s.eq s.value new_val) then begin
         s.value <- new_val;
         let cbs = List.map (fun l -> l.cb) s.listeners in
         Mutex.unlock s.mutex;
@@ -49,7 +63,7 @@ module State = struct
     let to_notify, new_val =
       Mutex.lock s.mutex;
       let v = f s.value in
-      if s.value <> v then begin
+      if not (s.eq s.value v) then begin
         s.value <- v;
         let cbs = List.map (fun l -> l.cb) s.listeners in
         Mutex.unlock s.mutex;
@@ -82,13 +96,21 @@ module State = struct
     let _ = subscribe_handle s f in
     ()
 
-  let map f src =
-    let derived = create (f (get src)) in
+  (** [map ?eq f src] is a state holding [f (State.get src)], updated whenever
+      [src] changes.
+
+      The subscription is permanent: [src] keeps this derived state alive for as
+      long as [src] itself. [unsubscribe] cannot reach it because its handle is
+      not returned. *)
+  let map ?eq f src =
+    let derived = create ?eq (f (get src)) in
     let _ = subscribe_handle src (fun v -> set derived (f v)) in
     derived
 
-  let map2 f s1 s2 =
-    let derived = create (f (get s1) (get s2)) in
+  (** [map2 ?eq f s1 s2] is a state derived from two states. See {!map} for the
+      subscription lifetime caveat. *)
+  let map2 ?eq f s1 s2 =
+    let derived = create ?eq (f (get s1) (get s2)) in
     let update () = set derived (f (get s1) (get s2)) in
     let _ = subscribe_handle s1 (fun _ -> update ()) in
     let _ = subscribe_handle s2 (fun _ -> update ()) in
@@ -96,7 +118,7 @@ module State = struct
 end
 
 let bind_ui (type a) (w : a Core.t) (s : 'b State.t) (update : a Core.t -> 'b -> unit) =
-  let obj : Core.qobject Core.t = Core.cast w in
+  let obj : Core.qobject Core.t = Core.Internal.cast w in
   let sub = State.subscribe_handle s (fun v ->
     Widgets.App.run_on_ui_thread (fun () ->
       if Core.Object.is_valid obj then
@@ -406,13 +428,22 @@ let combo_box ~items ?current ?on_change () =
     Widgets.Widget.as_widget cb
   )
 
-let canvas ?width ?height ~on_paint ?on_mouse_move ?on_mouse_press ?on_mouse_release ?on_key_press () =
+let canvas ?width ?height ?(antialiasing = true) ~on_paint ?on_mouse_move
+    ?on_mouse_press ?on_mouse_release ?on_key_press () =
   Widget (fun ~parent ->
     let c = Widgets.Canvas.create ?parent () in
-    Option.iter (fun w ->
-      let h = Option.value height ~default:w in
-      Widgets.Widget.resize c ~width:w ~height:h
-    ) width;
+    (* Set the hint on the painter rather than in on_paint, so the OCaml closure
+       only has to draw. The painter is invalid here, so this is applied lazily
+       inside the first paint via a wrapper closure. *)
+    let on_paint painter =
+      if antialiasing then Gui.Painter.enable_antialiasing painter;
+      on_paint painter
+    in
+    (match width with
+     | Some w ->
+       let h = Option.value height ~default:w in
+       Widgets.Widget.resize c ~width:w ~height:h
+     | None -> Option.iter (fun h -> Widgets.Widget.resize c ~width:100 ~height:h) height);
     Widgets.Canvas.on_paint c on_paint;
     Option.iter (fun f ->
       Widgets.Canvas.set_mouse_tracking c true;

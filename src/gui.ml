@@ -2,15 +2,26 @@ module Color = struct
   type t
 
   external rgb_raw : int -> int -> int -> int option -> t = "caml_oqt6_qcolor_rgb"
-  external name : string -> t = "caml_oqt6_qcolor_name"
+  external name_checked : string -> t = "caml_oqt6_qcolor_name_checked"
 
-  let rgb r g b ?alpha () = rgb_raw r g b alpha
+  (* An unparsable name raises Invalid_argument rather than yielding an invalid
+     colour that silently renders as something unexpected. *)
+  let name s = name_checked s
 
   external red : t -> int = "caml_oqt6_qcolor_red"
   external green : t -> int = "caml_oqt6_qcolor_green"
   external blue : t -> int = "caml_oqt6_qcolor_blue"
   external alpha : t -> int = "caml_oqt6_qcolor_alpha"
+  external is_valid : t -> bool = "caml_oqt6_qcolor_is_valid"
+  external to_hex : t -> string = "caml_oqt6_qcolor_to_hex"
+  external lighter : t -> int -> t = "caml_oqt6_qcolor_lighter"
+  external darker : t -> int -> t = "caml_oqt6_qcolor_darker"
+  external hsv : t -> int * int * int = "caml_oqt6_qcolor_hsv"
+  external hsl : t -> int * int * int = "caml_oqt6_qcolor_hsl"
+  external of_hsv : int -> int -> int -> t = "caml_oqt6_qcolor_from_hsv"
+  external of_hsl : int -> int -> int -> t = "caml_oqt6_qcolor_from_hsl"
 
+  let rgb r g b ?alpha () = rgb_raw r g b alpha
   let black = rgb 0 0 0 ()
   let white = rgb 255 255 255 ()
   let red_color = rgb 255 0 0 ()
@@ -30,9 +41,6 @@ module Font = struct
 
   external create_raw : string option -> int option -> bool option -> bool option -> t = "caml_oqt6_qfont_create"
 
-  let create ?family ?point_size ?bold ?italic () =
-    create_raw family point_size bold italic
-
   external family : t -> string = "caml_oqt6_qfont_family"
   external set_family : t -> string -> unit = "caml_oqt6_qfont_set_family"
   external point_size : t -> int = "caml_oqt6_qfont_point_size"
@@ -41,17 +49,58 @@ module Font = struct
   external set_bold : t -> bool -> unit = "caml_oqt6_qfont_set_bold"
   external italic : t -> bool = "caml_oqt6_qfont_italic"
   external set_italic : t -> bool -> unit = "caml_oqt6_qfont_set_italic"
+  external weight : t -> int = "caml_oqt6_qfont_weight"
+  external set_weight : t -> int -> unit = "caml_oqt6_qfont_set_weight"
+  external underline : t -> bool = "caml_oqt6_qfont_underline"
+  external set_underline : t -> bool -> unit = "caml_oqt6_qfont_set_underline"
+  external strikeout : t -> bool = "caml_oqt6_qfont_strikeout"
+  external set_strikeout : t -> bool -> unit = "caml_oqt6_qfont_set_strikeout"
+  external point_size_f : t -> float = "caml_oqt6_qfont_point_size_f"
+  external letter_spacing : t -> float = "caml_oqt6_qfont_letter_spacing"
+  external set_letter_spacing : t -> float -> unit = "caml_oqt6_qfont_set_letter_spacing"
+
+  let create ?family ?point_size ?bold ?italic ?weight ?underline ?strikeout
+      ?letter_spacing () =
+    let f = create_raw family point_size bold italic in
+    Option.iter (set_weight f) weight;
+    Option.iter (set_underline f) underline;
+    Option.iter (set_strikeout f) strikeout;
+    Option.iter (set_letter_spacing f) letter_spacing;
+    f
+
+  (* QFont::Weight values, as ints to be passed straight to [set_weight].
+     [bold_weight] rather than [bold] because [bold] is already the accessor. *)
+  let thin = 0
+  let extra_light = 12
+  let light = 50
+  let normal = 75
+  let medium = 100
+  let demi_bold = 63
+  let bold_weight = 75
+  let extra_bold = 200
+  let black_weight = 300
 end
 
 module Pen = struct
   type t
-  type style = [ `Solid_line | `Dash_line | `Dot_line | `No_pen ]
+
+  type style =
+    [ `Solid_line | `Dash_line | `Dot_line | `No_pen | `Dash_dot_line | `Dash_dot_dot_line ]
+
+  type cap_style = [ `Round_cap | `Flat_cap | `Square_cap ]
+  type join_style = [ `Round_join | `Bevel_join | `Miter_join ]
 
   let int_of_style = function
     | `Solid_line -> 0
     | `Dash_line -> 1
     | `Dot_line -> 2
     | `No_pen -> 3
+    | `Dash_dot_line -> 4
+    | `Dash_dot_dot_line -> 5
+
+  let int_of_cap = function `Round_cap -> 0 | `Flat_cap -> 1 | `Square_cap -> 2
+
+  let int_of_join = function `Round_join -> 0 | `Bevel_join -> 1 | `Miter_join -> 2
 
   external create_raw : Color.t option -> int option -> int option -> t = "caml_oqt6_qpen_create"
 
@@ -61,17 +110,50 @@ module Pen = struct
   external set_color : t -> Color.t -> unit = "caml_oqt6_qpen_set_color"
   external set_width : t -> int -> unit = "caml_oqt6_qpen_set_width"
   external set_style_raw : t -> int -> unit = "caml_oqt6_qpen_set_style"
+  external style_raw : t -> int = "caml_oqt6_qpen_style"
+  external color : t -> Color.t = "caml_oqt6_qpen_color"
+  external width : t -> int = "caml_oqt6_qpen_width"
+  external set_cap_style_raw : t -> int -> unit = "caml_oqt6_qpen_set_cap_style"
+  external cap_style_raw : t -> int = "caml_oqt6_qpen_cap_style"
+  external set_join_style_raw : t -> int -> unit = "caml_oqt6_qpen_set_join_style"
+  external join_style_raw : t -> int = "caml_oqt6_qpen_join_style"
+  external set_dash_pattern : t -> float list -> unit = "caml_oqt6_qpen_set_dash_pattern"
 
   let set_style p s = set_style_raw p (int_of_style s)
+  let set_cap_style p s = set_cap_style_raw p (int_of_cap s)
+  let set_join_style p s = set_join_style_raw p (int_of_join s)
+
+  let style p =
+    match style_raw p with
+    | 1 -> `Dash_line
+    | 2 -> `Dot_line
+    | 3 -> `No_pen
+    | 4 -> `Dash_dot_line
+    | 5 -> `Dash_dot_dot_line
+    | _ -> `Solid_line
+
+  let cap_style p =
+    match cap_style_raw p with 1 -> `Flat_cap | 2 -> `Square_cap | _ -> `Round_cap
+
+  let join_style p =
+    match join_style_raw p with 1 -> `Bevel_join | 2 -> `Miter_join | _ -> `Round_join
 end
 
 module Brush = struct
   type t
-  type style = [ `Solid_pattern | `No_brush ]
+
+  type style =
+    [ `Solid_pattern | `No_brush | `Dense5_pattern | `Dense7_pattern
+    | `Cross_pattern | `Ver_pattern | `Hor_pattern ]
 
   let int_of_style = function
     | `Solid_pattern -> 0
     | `No_brush -> 1
+    | `Dense5_pattern -> 2
+    | `Dense7_pattern -> 3
+    | `Cross_pattern -> 4
+    | `Ver_pattern -> 5
+    | `Hor_pattern -> 6
 
   external create_raw : Color.t option -> int option -> t = "caml_oqt6_qbrush_create"
 
@@ -80,8 +162,20 @@ module Brush = struct
 
   external set_color : t -> Color.t -> unit = "caml_oqt6_qbrush_set_color"
   external set_style_raw : t -> int -> unit = "caml_oqt6_qbrush_set_style"
+  external style_raw : t -> int = "caml_oqt6_qbrush_style"
+  external color : t -> Color.t = "caml_oqt6_qbrush_color"
 
   let set_style b s = set_style_raw b (int_of_style s)
+
+  let style b =
+    match style_raw b with
+    | 1 -> `No_brush
+    | 2 -> `Dense5_pattern
+    | 3 -> `Dense7_pattern
+    | 4 -> `Cross_pattern
+    | 5 -> `Ver_pattern
+    | 6 -> `Hor_pattern
+    | _ -> `Solid_pattern
 end
 
 module Pixmap = struct
@@ -109,9 +203,33 @@ end
 module Painter = struct
   type t
 
+  (** Rendering quality hints. Without these, every primitive renders with hard
+      (aliased) edges, which is why [Antialiasing] is usually the first thing to
+      turn on. *)
+  type render_hint =
+    [ `Antialiasing | `Text_antialiasing | `Smooth_pixmap_transform ]
+
+  let int_of_render_hint = function
+    | `Antialiasing -> 0
+    | `Text_antialiasing -> 1
+    | `Smooth_pixmap_transform -> 2
+
   external set_pen : t -> Pen.t -> unit = "caml_oqt6_qpainter_set_pen"
   external set_brush : t -> Brush.t -> unit = "caml_oqt6_qpainter_set_brush"
   external set_font : t -> Font.t -> unit = "caml_oqt6_qpainter_set_font"
+  external set_render_hint_raw : t -> int -> bool -> unit = "caml_oqt6_qpainter_set_render_hint"
+  external set_opacity : t -> float -> unit = "caml_oqt6_qpainter_set_opacity"
+
+  (** [set_render_hint p `Antialiasing true] smooths shape edges.
+      [`Text_antialiasing] smooths text; [`Smooth_pixmap_transform] scales
+      pixmaps smoothly when [draw_pixmap] is given a size. *)
+  let set_render_hint p h on = set_render_hint_raw p (int_of_render_hint h) on
+  let set_hint = set_render_hint
+
+  (** Convenience for the common case. *)
+  let enable_antialiasing p =
+    set_render_hint p `Antialiasing true;
+    set_render_hint p `Text_antialiasing true
 
   external draw_line_raw : t -> int -> int -> int -> int -> unit = "caml_oqt6_qpainter_draw_line"
   let draw_line p ~x1 ~y1 ~x2 ~y2 = draw_line_raw p x1 y1 x2 y2
@@ -121,6 +239,10 @@ module Painter = struct
 
   external fill_rect_raw : t -> int -> int -> int -> int -> Color.t -> unit = "caml_oqt6_qpainter_fill_rect_byte" "caml_oqt6_qpainter_fill_rect"
   let fill_rect p ~x ~y ~width ~height c = fill_rect_raw p x y width height c
+
+  (** Fill using the current brush rather than an explicit colour. *)
+  external fill_rect_with_brush : t -> int -> int -> int -> int -> unit = "caml_oqt6_qpainter_fill_rect_with_brush"
+  let fill_rect_brush p ~x ~y ~width ~height = fill_rect_with_brush p x y width height
 
   external draw_rounded_rect_raw : t -> int -> int -> int -> int -> float -> float -> unit = "caml_oqt6_qpainter_draw_rounded_rect_byte" "caml_oqt6_qpainter_draw_rounded_rect"
   let draw_rounded_rect p ~x ~y ~width ~height ~x_radius ~y_radius = draw_rounded_rect_raw p x y width height x_radius y_radius
@@ -133,6 +255,27 @@ module Painter = struct
 
   external draw_pixmap_raw : t -> int -> int -> Pixmap.t -> unit = "caml_oqt6_qpainter_draw_pixmap"
   let draw_pixmap p ~x ~y pm = draw_pixmap_raw p x y pm
+
+  (** Points are [(x, y)] pairs of floats, so sub-pixel placement is possible.
+      Fewer than two points draws nothing. *)
+  external draw_polyline : t -> (float * float) list -> unit = "caml_oqt6_qpainter_draw_polyline"
+  external draw_polygon : t -> (float * float) list -> unit = "caml_oqt6_qpainter_draw_polygon"
+
+  (** Angles are in degrees, counter-clockwise from 3 o'clock. [span] may be
+      negative. The rectangle is a single [(x, y, width, height)] tuple so the
+      binding stays within the 5-argument limit for native stubs. *)
+  external draw_arc : t -> (int * int * int * int) -> float -> float -> unit = "caml_oqt6_qpainter_draw_arc"
+  external draw_pie : t -> (int * int * int * int) -> float -> float -> unit = "caml_oqt6_qpainter_draw_pie"
+
+  let draw_arc_deg p ~rect ~start_deg ~span_deg =
+    draw_arc p rect start_deg span_deg
+
+  let draw_pie_deg p ~rect ~start_deg ~span_deg =
+    draw_pie p rect start_deg span_deg
+
+  (** Bounding box of [text] in the painter's current font, as
+      [(x, y, width, height)]. *)
+  external bounding_rect : t -> string -> int * int * int * int = "caml_oqt6_qpainter_bounding_rect"
 
   external save : t -> unit = "caml_oqt6_qpainter_save"
   external restore : t -> unit = "caml_oqt6_qpainter_restore"
