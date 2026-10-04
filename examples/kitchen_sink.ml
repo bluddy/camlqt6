@@ -33,11 +33,11 @@ let () =
   let help_menu = MenuBar.add_menu mb "&Help" in
   let action_about = Menu.add_action_text help_menu "&About CamlQt6" in
   Action.on_triggered action_about (fun _ ->
-    MessageBox.information
+    ignore (MessageBox.information
       ~parent:main_win
       ~title:"About CamlQt6"
       ~text:"CamlQt6: Pure, Type-Safe OCaml 5 bindings for Qt 6.\n\nRunning natively on WSL2 / Linux / Windows / macOS."
-      ()
+      ())
   );
 
   (* Central Widget *)
@@ -130,7 +130,10 @@ let () =
     Button.on_clicked ok_btn (fun () -> Dialog.accept dlg);
     Layout.add_widget d_layout ok_btn;
     let ret = Dialog.exec dlg in
-    StatusBar.show_message sb (Printf.sprintf "Dialog closed with code %d" ret)
+    StatusBar.show_message sb
+      (match ret with
+       | `Accepted -> "Dialog closed: accepted"
+       | `Rejected -> "Dialog closed: rejected")
   );
 
   Layout.add_stretch left_layout ();
@@ -146,7 +149,7 @@ let () =
   let text_edit = TextEdit.create () in
   TextEdit.set_plain_text text_edit
     "Welcome to the CamlQt6 showcase!\n\n\
-     • Built using OCaml 5 with direct C++20 FFI\n\
+     • Built using OCaml 5 with direct C++17 FFI\n\
      • Safe memory management via QPointer\n\
      • Re-entrant multicore domain lock safety\n\
      • Native performance with zero-cost OCaml FFI\n\n\

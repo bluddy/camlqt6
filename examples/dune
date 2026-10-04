@@ -1,3 +1,8 @@
+; The demos stay in @default on purpose: they are compiled against the public
+; API only, so building them catches API drift (they are how MessageBox and
+; selection_model changes were validated). They are built exe-only rather than
+; byte+exe, halving the number of binaries produced.
 (executables
  (names hello kitchen_sink drawing_canvas table_view_demo workbench_demo declarative_todo drag_drop_demo)
+ (modes exe)
  (libraries camlqt6))

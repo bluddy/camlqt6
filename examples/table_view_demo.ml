@@ -122,15 +122,19 @@ let () =
   let status_bar = MainWindow.status_bar win in
   StatusBar.show_message status_bar "Ready. 6 employee records loaded in zero-copy functional table model.";
 
-  (* Selection changed handling *)
-  let sel_model = TableView.selection_model table_view in
-  ItemSelectionModel.on_current_changed sel_model (fun row _col ->
-    if row >= 0 && row < Array.length !employees then
-      let emp = (!employees).(row) in
-      let msg = Printf.sprintf "Selected: #%d - %s | %s | %s | $%d"
-        emp.id emp.name emp.department emp.role emp.salary in
-      StatusBar.show_message status_bar msg
-  );
+  (* Selection changed handling. selection_model returns an option because Qt
+     returns null once a view's model has been torn down. *)
+  let sel_model_opt = TableView.selection_model table_view in
+  (match sel_model_opt with
+  | None -> ()
+  | Some sel_model ->
+      ItemSelectionModel.on_current_changed sel_model (fun row _col ->
+        if row >= 0 && row < Array.length !employees then
+          let emp = (!employees).(row) in
+          let msg = Printf.sprintf "Selected: #%d - %s | %s | %s | $%d"
+            emp.id emp.name emp.department emp.role emp.salary in
+          StatusBar.show_message status_bar msg
+      ));
 
   (* Add employee action *)
   Button.on_clicked btn_add (fun () ->
@@ -139,7 +143,7 @@ let () =
     let role = LineEdit.text edit_role in
     let salary = SpinBox.value spin_salary in
     if String.trim name = "" then
-      MessageBox.warning ~parent:win ~title:"Validation Error" ~text:"Please enter an employee name." ()
+      ignore (MessageBox.warning ~parent:win ~title:"Validation Error" ~text:"Please enter an employee name." ())
     else begin
       let new_emp = { id = !next_id; name; department = dept; role; salary } in
       incr next_id;
@@ -153,22 +157,26 @@ let () =
 
   (* Delete employee action *)
   Button.on_clicked btn_remove (fun () ->
-    let rows = ItemSelectionModel.selected_rows sel_model in
+    let rows =
+      match sel_model_opt with
+      | Some m -> ItemSelectionModel.selected_rows m
+      | None -> []
+    in
     match rows with
     | [] ->
-        MessageBox.information ~parent:win ~title:"Notice" ~text:"Please select a row to delete." ()
+        ignore (MessageBox.information ~parent:win ~title:"Notice" ~text:"Please select a row to delete." ())
     | row :: _ ->
         if row >= 0 && row < Array.length !employees then begin
           let emp = (!employees).(row) in
-          let confirm = MessageBox.question ~parent:win ~title:"Confirm Delete"
-            ~text:(Printf.sprintf "Are you sure you want to remove %s?" emp.name) () in
-          if confirm then begin
+          match MessageBox.question ~parent:win ~title:"Confirm Delete"
+            ~text:(Printf.sprintf "Are you sure you want to remove %s?" emp.name) () with
+          | `Yes ->
             let list = Array.to_list !employees in
             let filtered = List.filteri (fun i _ -> i <> row) list in
             employees := Array.of_list filtered;
             TableModel.notify_reset table_model;
             StatusBar.show_message status_bar (Printf.sprintf "Removed record #%d." emp.id)
-          end
+          | _ -> ()
         end
   );
 
