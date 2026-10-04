@@ -105,20 +105,36 @@ dune build
 ```
 
 ### 4.2 Automated Headless Test Suite
-Run the 34-case test suite in headless offscreen mode:
+
+The suite sets `QT_QPA_PLATFORM=offscreen` itself (see `test/dune`), so the environment variable
+is optional — it is shown here only to make the requirement explicit:
+
 ```powershell
-$env:QT_QPA_PLATFORM = "offscreen"
 dune runtest
 ```
 
-Expected output:
+Every check is named as it runs, so a failure reports which one broke and how:
+
 ```
-=== Starting CamlQt6 Test Suite ===
-Entering QApplication event loop...
-Timer callback executed successfully in event loop!
-Event loop exited cleanly.
-Testing memory model and object lifetime tracking...
-=== All CamlQt6 Tests Passed Successfully! ===
+  ok    harness: failure detection works
+  ok    widget/window_title
+  ok    tablemodel/data_0_1
+  ...
+=== All 223 CamlQt6 tests passed ===
+```
+
+On failure the summary lists each failing check with expected-versus-actual and the process exits
+non-zero:
+
+```
+  FAIL  widget/width
+          Failure("expected 100 but got 120")
+=== 223 passed, 1 FAILED ===
+  - widget/width: Failure("expected 100 but got 120")
+```
+
+The suite also arms a 30-second watchdog inside the event-loop test, so a stalled event loop fails
+the run instead of hanging forever.
 ```
 
 ---

@@ -147,6 +147,9 @@ let () =
   let pos = ref (100, 100) in
 
   Canvas.on_paint canvas (fun painter ->
+    (* Qt leaves every render hint off by default, so without this the rounded
+       rect below has visibly jagged edges. *)
+    Painter.enable_antialiasing painter;
     Painter.set_pen painter (Pen.create ~color:(Color.rgb 52 152 219 ()) ~width:3 ());
     Painter.set_brush painter (Brush.create ~color:(Color.rgb 241 196 15 ()) ());
     let (x, y) = !pos in
@@ -193,7 +196,7 @@ let () =
       let u = users.(r) in
       match c with 0 -> string_of_int u.id | 1 -> u.name | _ -> u.role)
     ~header_data:(fun sec orient ->
-      if orient = `Horizontal then
+      if orient = `Horizontal` then
         match sec with 0 -> "ID" | 1 -> "Name" | _ -> "Role"
       else string_of_int (sec + 1))
     ()
@@ -207,6 +210,53 @@ let () =
   Widget.show win;
   exit (App.exec app)
 ```
+
+### Sorting and per-cell styling
+
+`TableView.set_sorting_enabled` only works if the model is given a `~sort` callback — Qt's default
+`QAbstractItemModel::sort` is a no-op, so without one the header looks sortable and clicking it
+does nothing. `~sort` is expected to reorder the underlying OCaml collection; the view is reset
+for you:
+
+```ocaml
+let users = ref users in
+
+let model =
+  TableModel.create
+    ~row_count:(fun () -> Array.length !users)
+    ~col_count:(fun () -> 3)
+    ~data:(fun r c -> ...)
+    ~sort:(fun col order ->
+      Array.sort
+        (fun a b ->
+          let cmp = if col = 1 then compare a.role b.role else compare a.id b.id in
+          match order with `Descending -> -cmp | `Ascending -> cmp)
+        !users)
+    ()
+in
+
+TableView.set_sorting_enabled table true   (* now actually sorts *)
+```
+
+Per-cell colours, icons, alignment and tooltips are optional callbacks of the shape
+`row -> col -> payload option`. Return `None` to fall back to the view's own styling:
+
+```ocaml
+TableModel.create
+  ~row_count ~col_count ~data
+  ~foreground:(fun _r c -> if c = 2 then Some Color.red_color else None)
+  ~background:(fun r _c -> if r mod 2 = 0 then Some Color.light_gray else None)
+  ~alignment:(fun _r c ->
+    if c = 2 then Some (TableModel.align_right lor TableModel.align_vcenter) else None)
+  ~tooltip:(fun r c -> Some (Printf.sprintf "row %d col %d" r c))
+  ()
+```
+
+`TableModel.data_at` / `header_at` / `row_count` / `column_count` read the model back through Qt's
+own dispatch, which is handy in tests and assertions.
+
+**Note:** `TableModel` is a *table* model. `TreeView` and `ListView` still require the copying
+`StandardItemModel`; there is no zero-copy tree model yet.
 
 ---
 
@@ -250,3 +300,4 @@ Run any of the included demonstrations:
 | **Table View Demo**| `dune exec examples/table_view_demo.exe` | Interactive employee directory with sorting and headers. |
 | **Workbench IDE** | `dune exec examples/workbench_demo.exe` | Full desktop IDE with docks, splitters, tabs, toolbar, and dialogs. |
 | **Declarative Todo**| `dune exec examples/declarative_todo.exe`| Reactive state-driven todo and dashboard app built with `Dsl`. |
+| **Drag & Drop Studio** | `dune exec examples/drag_drop_demo.exe` | Drag payloads between widgets using `Clipboard`, `MimeData` and `Drag`. |

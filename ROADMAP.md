@@ -1,6 +1,12 @@
-# CamlQt6: Comprehensive Development Plan & Architecture
+﻿# CamlQt6: Development Plan & Architecture
 
-This document outlines the strategy for expanding **CamlQt6** into a full-featured, cross-platform Qt 6 binding for OCaml.
+This document records the strategy behind the library's shape and the state of each phase.
+
+> **Status note (2026-10).** The "hybrid 2-tier generator" architecture described in §1 was
+> **evaluated and not adopted.** No code generator is built, and the shipped library is entirely
+> hand-written C++ and OCaml — see §1.3. The reasoning is kept below because it still explains why
+> the API looks the way it does, but it is not a plan. For what is actually outstanding, see
+> [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md).
 
 ---
 
@@ -24,7 +30,7 @@ Qt 6 is one of the largest application frameworks in existence:
   - Manual pointer casting instead of type-safe subtyping.
   - No integration with OCaml functional idioms, domain locks, or reactive patterns.
 
-### The Recommended Architecture: The 2-Tier "Hybrid" Engine
+### The Evaluated Architecture: The 2-Tier "Hybrid" Engine — *not adopted*
 
 ```mermaid
 graph TD
@@ -37,25 +43,48 @@ graph TD
     D --> H["Custom Widget Overrides (QPainter, Events)"]
 ```
 
-1. **Tier 1 (Automated Mechanical FFI):**
-   - A deterministic generator (leveraging Clang AST parser or the proven [libqt6c/miqt](https://github.com/rcalixte/libqt6c) metadata).
-   - Generates the mechanical, non-thinking C wrapper functions and raw OCaml `external` declarations.
-2. **Tier 2 (High-Level Idiomatic API - Where Agents Excel):**
+1. **Tier 1 (would have been automated mechanical FFI):**
+   - A deterministic generator (leveraging a Clang AST parser or metadata such as
+     [libqt6c/miqt](https://github.com/rcalixte/libqt6c)).
+   - Generates the mechanical C wrapper functions and raw OCaml `external` declarations.
+2. **Tier 2 (High-Level Idiomatic API):**
    - Labeled/optional arguments and sensible defaults.
    - Expressive variant types for enums and bitflags.
    - Memory ownership contracts and OCaml 5 multicore safety.
-   - Declarative layout DSLs (e.g. Elm/SwiftUI-style tree builders).
-   - Custom widget subclassing trampolines (e.g. `paintEvent` dispatching to OCaml canvas renderers).
+   - Declarative layout DSLs (Elm/SwiftUI-style tree builders).
+   - Custom widget subclassing trampolines (`paintEvent` dispatching to OCaml canvas renderers).
+
+### 1.3 What was actually built, and why
+
+**Tier 2 only.** Every line of the ~4,400-line C++ stub layer and the OCaml layer above it is
+hand-written; the repository has no generator and no generator dependency, and `dune build` needs
+nothing but a C++17 compiler and Qt 6.
+
+The deciding factor was coverage rather than philosophy. A generator would have produced tens of
+thousands of mechanical wrappers, of which a desktop GUI application needs perhaps a few hundred.
+Hand-writing only the useful surface cost more per line and bought:
+
+- typed polymorphic variants instead of integer enum codes, with every encoding mapped through named
+  Qt constants;
+- labeled and optional arguments throughout;
+- a real memory-ownership model (`QPointer` + an `owned` flag + a runtime-checked handle type)
+  rather than a generated one that assumes everything is a parented `QObject`;
+- hand-tuned event trampolines, the domain-lock protocol, and the reactive `State` layer.
+
+The cost of that choice is the ordinary one: coverage grows slowly, and the gaps are listed in
+[docs/CODE_REVIEW.md](docs/CODE_REVIEW.md). The generator's advantage — regenerating the whole FFI
+surface in seconds after a Qt upgrade — is real but has not yet been needed; Qt 6 minor versions
+have not required regenerating anything.
 
 ---
 
-## 2. Phased Roadmap to Full Coverage
+## 2. Phased Delivery
 
 ```mermaid
 flowchart LR
     P1["Phase 1: Essential Desktop UI (80/20)"] --> P2["Phase 2: Custom Drawing & Event Trampolines"]
     P2 --> P3["Phase 3: Model / View / Delegate Architecture"]
-    P3 --> P4["Phase 4: Clang / Metadata Generator Pipeline"]
+    P3 --> P4["Phase 4: Broad Desktop GUI Coverage"]
     P4 --> P5["Phase 5: Declarative Functional DSL"]
 ```
 
@@ -93,7 +122,7 @@ flowchart LR
    - [x] `QPen`: Colors, stroke widths, styles (`Solid_line`, `Dash_line`, `Dot_line`, `No_pen`).
    - [x] `QBrush`: Colors, styles (`Solid_pattern`, `No_brush`).
    - [x] `QPainter`: `draw_line`, `draw_rect`, `fill_rect`, `draw_rounded_rect`, `draw_ellipse`, `draw_text`, affine transforms (`translate`, `scale`, `rotate`), state stack (`save`, `restore`).
-   - [x] Interactive demo: [examples/drawing_canvas.ml](file:///home/yotam/source/ocaml/CamlQt6/examples/drawing_canvas.ml).
+   - [x] Interactive demo: [examples/drawing_canvas.ml](examples/drawing_canvas.ml).
 
 ---
 
@@ -101,7 +130,10 @@ flowchart LR
 *Goal: High-performance data display and tables for data-dense applications.*
 
 1. **Views:**
-   - [x] `QTableView`: Sorting, grid display, alternating row colors, column/row content auto-resizing, double-click & click signals.
+   - [x] `QTableView`: Grid display, alternating row colors, column/row content auto-resizing, double-click & click signals.
+  - [x] Sorting, via `TableModel ~sort`. *(Added after review: Qt's default `QAbstractItemModel::sort`
+        is a no-op, so `set_sorting_enabled` originally produced a header that looked sortable and
+        silently did nothing.)*
    - [x] `QTreeView`: Expand all, collapse all, tree header.
    - [x] `QListView`: List selection and row click signals.
    - [x] `QHeaderView`: Last section stretch, interactive/stretch/fixed/contents resize modes.
@@ -110,7 +142,7 @@ flowchart LR
    - [x] `TableModel` (`OCamlTableModel : public QAbstractTableModel`): Zero-copy functional table model binding arbitrary OCaml in-memory data structures (arrays of records, tuples, maps) directly into Qt views with `notify_reset` and `notify_data_changed`.
 3. **Selection Models:**
    - [x] `QItemSelectionModel`: Current index, selected rows list, selection change notifications.
-   - [x] Interactive demo: [examples/table_view_demo.ml](file:///home/yotam/source/ocaml/CamlQt6/examples/table_view_demo.ml).
+   - [x] Interactive demo: [examples/table_view_demo.ml](examples/table_view_demo.ml).
 
 ---
 
@@ -136,7 +168,7 @@ flowchart LR
    - [x] `QIcon`: Loading from file, pixmap, or system desktop theme.
    - [x] `QCursor`: Typed mouse cursors (`Pointing_hand`, `Cross`, `Wait`, `I_beam`, etc.) and unsetting.
    - [x] `Painter.draw_pixmap`: Blitting pixmaps onto canvas viewports.
-   - [x] Interactive demo: [examples/workbench_demo.ml](file:///home/yotam/source/ocaml/CamlQt6/examples/workbench_demo.ml).
+   - [x] Interactive demo: [examples/workbench_demo.ml](examples/workbench_demo.ml).
 
 ---
 
@@ -157,7 +189,7 @@ flowchart LR
 3. **Application Runner:**
    - [x] `Dsl.mount`: Compiles the declarative specification tree into a live Qt widget hierarchy.
    - [x] `Dsl.run`: One-line application execution with automatic event loop setup.
-   - [x] Interactive demo: [examples/declarative_todo.ml](file:///home/yotam/source/ocaml/CamlQt6/examples/declarative_todo.ml).
+   - [x] Interactive demo: [examples/declarative_todo.ml](examples/declarative_todo.ml).
 
 ---
 
