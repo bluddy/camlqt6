@@ -27,9 +27,9 @@ is a hidden surprise; the outstanding work is therefore documented for users, no
 | 1 | C++ safety core: CRIT-2/3/4/5/6/8, HIGH-5, HIGH-13 | **done** |
 | 2 | API breaks: CRIT-1, HIGH-1, HIGH-2, BEH-4/5/6, DSL-1 | **done** |
 | 3 | Build/packaging: BUILD-1..26 | **done** (BUILD-10 left open on purpose) |
-| 4 | Tests: TEST-1..12 | **done** (TEST-4 still partial: no leak detection) |
+| 4 | Tests: TEST-1..13 | **done** (TEST-4 still partial: no leak detection) |
 | 5 | Features | **partly done** - graphics + model roles shipped; TreeModel/QImage/begin-end deferred (see below) |
-| 6 | Docs: DOC-1..12 | **done** |
+| 6 | Docs: DOC-1, DOC-2, DOC-10, DOC-11, DOC-12 | **done** |
 
 ### Corrections made during implementation
 Findings in the original review that turned out to be wrong, and are withdrawn:
@@ -982,12 +982,15 @@ non-breaking: keep `<>` as the default but add `State.create ~eq`, and document 
 
 ## 10. Docs
 
-### [ ] DOC-1 Every cross-doc link is a `file:///home/yotam/...` absolute path
+### [x] DOC-1 Cross-doc links were absolute `file:///home/<user>/...` paths
 `README.md:27-28`, `:185-188`; `ROADMAP.md:96`, `:113`, `:139`, `:160`;
-`docs/ARCHITECTURE.md:27-28`, `:96-100`, `:141`. Broken for every reader — and this checkout is at
-`C:\source\ocaml\camlqt6`.
+`docs/ARCHITECTURE.md:27-28`, `:96-100`, `:141`. Broken for every reader.
+**Resolved:** all cross-doc links are now repository-relative
+(`docs/ARCHITECTURE.md`, `ROADMAP.md`, ...), verified by grepping for links
+targeting `/`, `file:` or a drive letter. The machine-specific path is no
+longer in the document.
 
-### [ ] DOC-2 The test count is stated three different ways
+### [x] DOC-2 The test count is stated three different ways
 Badge "39/39" (`README.md:5`), "34-case test suite" (`README.md:77`), "34-case" again
 (`docs/WINDOWS_TESTING.md:108`). Actual: 43.
 
@@ -1021,16 +1024,16 @@ mechanism is polymorphic compare. See DSL-1.
 affine transforms, pixmap blitting)". No render hints, no clipping, no opacity, ~12 missing
 primitives (GAP-8 … GAP-14).
 
-### [ ] DOC-10 `README.md` overstates model/view coverage
+### [x] DOC-10 `README.md` overstates model/view coverage
 `README.md:20`, `:39` — "Zero-Copy Functional Model/View … into `QTableView`, `QTreeView`, and
 `QListView` with zero C++ data duplication". `TreeView` cannot use `TableModel` at all (GAP-1), and
 `ListView` has no functional model.
 
-### [ ] DOC-11 `README.md` overstates multicore safety
+### [x] DOC-11 `README.md` overstates multicore safety
 `README.md:17`, `:42` — "Multicore Safety … coordinates safely with OCaml 5 runtime domains". See
 THR-1, THR-2.
 
-### [ ] DOC-12 README badge links are empty
+### [x] DOC-12 README badge links are empty
 `README.md:5-6` — `[![Build & Test](...)]()` and a LICENSE badge pointing at `LICENSE`, which does
 not exist in the repo despite `README.md:194` claiming MIT.
 
