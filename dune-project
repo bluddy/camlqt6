@@ -7,12 +7,12 @@
  (name camlqt6)
  (synopsis "Qt 6 bindings for OCaml")
  (description
-  "Cross-platform Qt 6 bindings for OCaml supporting Core, Gui, and Widgets.\n\nProvides an imperative widget API, a zero-copy functional QAbstractItemModel\nbridge, a QPainter/custom-painting canvas, and a declarative reactive DSL, with\nQPointer-based lifetime tracking and OCaml 5 domain-lock safety.")
+  "Cross-platform Qt 6 bindings for OCaml supporting Core, Gui, and Widgets.\n\nProvides an imperative widget API, a functional QAbstractItemModel bridge for\nQTableView that does not copy the bound data (there is no equivalent tree model\nyet), a QPainter/custom-painting canvas, and a declarative reactive DSL, with\nQPointer-based lifetime tracking and OCaml 5 domain-lock safety.")
  (authors "CamlQt6 contributors")
  (maintainers "CamlQt6 contributors")
  (license MIT)
- (homepage "https://github.com/camlqt6/camlqt6")
- (bug_reports "https://github.com/camlqt6/camlqt6/issues")
+ (homepage "https://github.com/bluddy/camlqt6")
+ (bug_reports "https://github.com/bluddy/camlqt6/issues")
  (depends
   ;; Qt itself is discovered at configure time by config/discover.ml, which
   ;; probes QTDIR / Qt6_DIR / pkg-config / qmake6. There is no maintained conf

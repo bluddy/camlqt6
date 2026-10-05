@@ -1,0 +1,19 @@
+(lang dune 3.13)
+
+; Strict-warning profile, used by the advisory CI job.
+;
+; The root dune file deliberately leaves -warn-error off for normal builds: the
+; C++ stub layer cannot avoid a few warnings, and promoting them to errors there
+; would only get in the way. This profile turns them into errors on demand,
+; without changing what a plain `dune build` does.
+;
+; dune 3 removed the `--flags` command-line option, and a (profile ...) stanza
+; cannot carry flags either, so the supported way to inject compiler flags for a
+; named profile is an env stanza keyed by that profile's name.
+;
+; Known to fail today, which is why the CI job is continue-on-error. The warning
+; set matches the root dune file's, minus `-warn-error -a`.
+(env
+ (warnings
+  (flags
+   (:standard -w +a-4-9-40-41-42-44-45-48-70 -warn-error +a))))

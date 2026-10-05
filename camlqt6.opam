@@ -5,14 +5,15 @@ synopsis: "Qt 6 bindings for OCaml"
 description: """
 Cross-platform Qt 6 bindings for OCaml supporting Core, Gui, and Widgets.
 
-Provides an imperative widget API, a zero-copy functional QAbstractItemModel
-bridge, a QPainter/custom-painting canvas, and a declarative reactive DSL, with
+Provides an imperative widget API, a functional QAbstractItemModel bridge for
+QTableView that does not copy the bound data (there is no equivalent tree model
+yet), a QPainter/custom-painting canvas, and a declarative reactive DSL, with
 QPointer-based lifetime tracking and OCaml 5 domain-lock safety."""
 maintainer: ["CamlQt6 contributors"]
 authors: ["CamlQt6 contributors"]
 license: "MIT"
-homepage: "https://github.com/camlqt6/camlqt6"
-bug-reports: "https://github.com/camlqt6/camlqt6/issues"
+homepage: "https://github.com/bluddy/camlqt6"
+bug-reports: "https://github.com/bluddy/camlqt6/issues"
 depends: [
   "dune" {>= "3.13"}
   "ocaml" {>= "5.0.0"}

@@ -1,0 +1,180 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  OPAMYES: "1"
+  # Qt is found by config/discover.ml. Nothing here sets QTDIR on Linux,
+  # deliberately: that exercises the pkg-config fallback against a Qt layout
+  # (/usr/include/<triple>/qt6/QtWidgets) that the prefix scanner does not
+  # recognise, which is exactly the Debian/Ubuntu case we want covered.
+  CXXFLAGS: ""
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "ubuntu / ocaml 5.0", os: ubuntu-latest, ocaml: "5.0.0", qt: apt }
+          - { name: "ubuntu / ocaml 5.1", os: ubuntu-latest, ocaml: "5.1.1", qt: apt }
+          - { name: "ubuntu / ocaml 5.2", os: ubuntu-latest, ocaml: "5.2.0", qt: apt }
+          - { name: "ubuntu / ocaml 5.3", os: ubuntu-latest, ocaml: "5.3.0", qt: apt }
+          - { name: "macos / ocaml 5.2", os: macos-latest, ocaml: "5.2.0", qt: brew }
+          - { name: "macos / ocaml 5.3", os: macos-latest, ocaml: "5.3.0", qt: brew }
+          # Windows is the least reliable leg: it needs a Qt built for the same
+          # toolchain as the OCaml compiler. MSYS2 lets pacman install a Qt whose
+          # ABI matches opam's mingw-w64 OCaml, which is why the Windows job runs
+          # entirely inside MSYS2 rather than using the MSVC Qt installer.
+          - { name: "windows / ocaml 5.3", os: windows-latest, ocaml: "5.3.0", qt: msys2 }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt (Linux)
+        if: matrix.qt == 'apt'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qt6-base-dev qt6-base-dev-tools pkg-config build-essential
+
+      - name: Install Qt (macOS)
+        if: matrix.qt == 'brew'
+        run: |
+          brew install qt@6 pkg-config
+          # qt@6 is keg-only, so its .pc files are not on pkg-config's default
+          # path. Without this, config/discover.ml's pkg-config fallback fails
+          # and the job dies looking for Qt headers.
+          echo "PKG_CONFIG_PATH=$(brew --prefix qt@6)/lib/pkgconfig:${PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
+
+      - name: Set up MSYS2 (Windows)
+        if: matrix.qt == 'msys2'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          # Qt and OCaml must agree on the runtime and toolchain. MINGW64 here
+          # plus the mingw-w64-ucrt-x86_64-* packages below gives a UCRT build
+          # on both sides.
+          update: true
+          install: >-
+            base-devel
+            git
+            mingw-w64-ucrt-x86_64-qt6-base
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-opam
+
+      - name: Set up opam (Linux/macOS)
+        if: matrix.qt != 'msys2'
+        uses: ocaml/setup-opam@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml }}
+
+      - name: Set up opam (Windows/MSYS2)
+        if: matrix.qt == 'msys2'
+        shell: msys2 {0}
+        run: |
+          # opam lives in the MSYS2 prefix; export the Qt prefix so discovery
+          # uses QTDIR instead of guessing.
+          export PATH="/mingw64/bin:$PATH"
+          export QTDIR=/mingw64
+          # The checkout is owned by the Windows user but MSYS2 git sees a
+          # different owner, so dune refuses to read the tree without this.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          opam init -y --bare --disable-sandboxing --no-setup
+          opam switch create camlqt6 "${{ matrix.ocaml }}" -y
+          eval $(opam env --switch=camlqt6 --set-switch)
+          opam install -y dune-configurator pkg-config
+          echo "QTDIR=$QTDIR" >> "$GITHUB_ENV"
+          echo "OPAM_SWITCH_PREFIX=$(opam var prefix)" >> "$GITHUB_ENV"
+
+      - name: Cache opam (Linux/macOS)
+        if: matrix.qt != 'msys2'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.opam
+            ~/.cache/opam
+          key: ${{ runner.os }}-opam-${{ matrix.ocaml }}-${{ hashFiles('camlqt6.opam') }}
+
+      - name: Cache opam (Windows/MSYS2)
+        if: matrix.qt == 'msys2'
+        uses: actions/cache@v4
+        with:
+          path: ~/.opam
+          key: ${{ runner.os }}-opam-msys2-${{ matrix.ocaml }}-${{ hashFiles('camlqt6.opam') }}
+
+      - name: Build and test (Linux/macOS)
+        if: matrix.qt != 'msys2'
+        run: |
+          opam install -y . --deps-only
+          dune build @install
+          dune runtest
+
+      - name: Build and test (Windows/MSYS2)
+        if: matrix.qt == 'msys2'
+        shell: msys2 {0}
+        run: |
+          export PATH="/mingw64/bin:$PATH"
+          eval $(opam env --switch=camlqt6 --set-switch)
+          opam install -y . --deps-only
+          dune build @install
+          dune runtest
+
+  metadata:
+    name: opam metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ocaml/setup-opam@v2
+        with:
+          ocaml-compiler: "5.3.0"
+      - run: opam lint camlqt6.opam
+      # Guards the hand-edited discovery script, which nothing else exercises.
+      # config/discover.ml is run by dune-configurator on every build, so a
+      # warning there would otherwise only be seen as console noise.
+      - name: Configure must not warn
+        run: |
+          output=$(dune build @all 2>&1 || true)
+          echo "$output"
+          if echo "$output" | grep -q 'camlqt6-discover] warning'; then
+            echo "::error::config/discover.ml emitted a discovery warning"
+            exit 1
+          fi
+
+  warnings:
+    name: strict warnings (advisory)
+    runs-on: ubuntu-latest
+    # The root dune file deliberately leaves -warn-error off. The dune-workspace
+    # defines a `warnings` profile that turns it on, so new warnings surface
+    # without getting in the way of a normal `dune build`.
+    #
+    # Currently green, so this could be made blocking; it is left advisory until
+    # it has passed on a Linux runner, since the warning set can differ slightly
+    # across platforms and compiler versions. To gate on it, drop the line below.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qt6-base-dev qt6-base-dev-tools pkg-config build-essential
+      - uses: ocaml/setup-opam@v2
+        with:
+          ocaml-compiler: "5.3.0"
+      - run: opam install -y . --deps-only
+      # Note: dune 3 removed `--flags`, and `(profile ...)` cannot carry flags
+      # either, so the flags come from the `warnings` env stanza in
+      # dune-workspace. `dune build -- <flags>` does not work: dune reads those
+      # as build targets.
+      - run: dune build @all --profile warnings

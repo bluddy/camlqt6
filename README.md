@@ -1,5 +1,6 @@
 # CamlQt6: Cross-Platform Qt 6 Bindings for OCaml
 
+[![CI](https://github.com/bluddy/camlqt6/actions/workflows/ci.yml/badge.svg)](https://github.com/bluddy/camlqt6/actions/workflows/ci.yml)
 [![OCaml 5.x](https://img.shields.io/badge/OCaml-5.x-orange.svg)](https://ocaml.org/)
 [![Qt 6.x](https://img.shields.io/badge/Qt-6.x-green.svg)](https://www.qt.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
