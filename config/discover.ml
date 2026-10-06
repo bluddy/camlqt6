@@ -204,8 +204,23 @@ let () =
     (* C++ standard: 17 by default, overridable. The docs previously advertised
        C++20 while the build hardcoded 17. *)
     let std = match read_env "CAMLQT6_CXXSTD" with Some s -> s | None -> "17" in
+
+(* /permissive- is mandatory for Qt 6.8+ on MSVC, not a style preference.
+   QtCore/qcompilerdetection.h contains
+
+     static_assert(__cpp_consteval >= 201811L ||
+                   !(defined(_MSVC_LANG) ...),
+                   "On MSVC you must pass the /permissive- option to the compiler.");
+
+   and fails with error C2338 without it. MSVC's default (/permissive) also then
+   produces a cascade of bogus errors inside Qt's own headers, notably C2666 on
+   QByteArray::comparesEqual and C2139 'QString': an undefined class is not
+   allowed as an argument to __is_convertible_to. Those are all consequences of
+   the missing option, not separate problems, so do not chase them individually.
+   Found by the Windows CI leg; it reproduces for any MSVC user on Qt >= 6.8. *)
     let default_cxxflags =
-      if is_msvc then [ "/std:c++" ^ std; "/EHsc"; "/Zc:__cplusplus" ]
+      if is_msvc then
+        [ "/std:c++" ^ std; "/EHsc"; "/Zc:__cplusplus"; "/permissive-" ]
       else if Sys.os_type = "Win32" then [ "-std=c++" ^ std ]
       else [ "-std=c++" ^ std; "-fPIC" ]
     in
