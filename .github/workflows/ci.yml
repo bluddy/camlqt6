@@ -26,17 +26,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: "ubuntu / ocaml 5.0", os: ubuntu-latest, ocaml: "5.0.0", qt: apt }
-          - { name: "ubuntu / ocaml 5.1", os: ubuntu-latest, ocaml: "5.1.1", qt: apt }
-          - { name: "ubuntu / ocaml 5.2", os: ubuntu-latest, ocaml: "5.2.0", qt: apt }
-          - { name: "ubuntu / ocaml 5.3", os: ubuntu-latest, ocaml: "5.3.0", qt: apt }
-          - { name: "macos / ocaml 5.2", os: macos-latest, ocaml: "5.2.0", qt: brew }
-          - { name: "macos / ocaml 5.3", os: macos-latest, ocaml: "5.3.0", qt: brew }
+          - { name: "ubuntu / ocaml 5.0", os: ubuntu-latest, ocaml: "5.0", qt: apt }
+          - { name: "ubuntu / ocaml 5.1", os: ubuntu-latest, ocaml: "5.1", qt: apt }
+          - { name: "ubuntu / ocaml 5.2", os: ubuntu-latest, ocaml: "5.2", qt: apt }
+          - { name: "ubuntu / ocaml 5.3", os: ubuntu-latest, ocaml: "5.3", qt: apt }
+          - { name: "macos / ocaml 5.2", os: macos-latest, ocaml: "5.2", qt: brew }
+          - { name: "macos / ocaml 5.3", os: macos-latest, ocaml: "5.3", qt: brew }
           # Windows is the least reliable leg: it needs a Qt built for the same
           # toolchain as the OCaml compiler. MSYS2 lets pacman install a Qt whose
           # ABI matches opam's mingw-w64 OCaml, which is why the Windows job runs
           # entirely inside MSYS2 rather than using the MSVC Qt installer.
-          - { name: "windows / ocaml 5.3", os: windows-latest, ocaml: "5.3.0", qt: msys2 }
+          - { name: "windows / ocaml 5.3", os: windows-latest, ocaml: "5.3", qt: msys2 }
 
     steps:
       - uses: actions/checkout@v4
@@ -76,9 +76,14 @@ jobs:
 
       - name: Set up opam (Linux/macOS)
         if: matrix.qt != 'msys2'
-        uses: ocaml/setup-opam@v2
+        uses: ocaml/setup-ocaml@v3
         with:
+          # A semver range: the action resolves it to the newest release in the
+          # range, so "5.0" tracks 5.0.x without a hardcoded patch level.
           ocaml-compiler: ${{ matrix.ocaml }}
+          # GitHub runners are containers without bubblewrap; opam's sandbox
+          # fails there, so build in a bubblewrap-free switch.
+          opam-disable-sandboxing: true
 
       - name: Set up opam (Windows/MSYS2)
         if: matrix.qt == 'msys2'
@@ -136,9 +141,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ocaml/setup-opam@v2
+      - uses: ocaml/setup-ocaml@v3
         with:
-          ocaml-compiler: "5.3.0"
+          ocaml-compiler: "5.3"
       - run: opam lint camlqt6.opam
       # Guards the hand-edited discovery script, which nothing else exercises.
       # config/discover.ml is run by dune-configurator on every build, so a
@@ -169,9 +174,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             qt6-base-dev qt6-base-dev-tools pkg-config build-essential
-      - uses: ocaml/setup-opam@v2
+      - uses: ocaml/setup-ocaml@v3
         with:
-          ocaml-compiler: "5.3.0"
+          ocaml-compiler: "5.3"
       - run: opam install -y . --deps-only
       # Note: dune 3 removed `--flags`, and `(profile ...)` cannot carry flags
       # either, so the flags come from the `warnings` env stanza in
