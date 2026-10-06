@@ -243,9 +243,21 @@ let () =
       ] in
       let libs =
         if is_msvc then
-          [ "/LIBPATH:" ^ lib_dir; "Qt6Widgets.lib"; "Qt6Gui.lib"; "Qt6Core.lib" ]
-        else
-          [ "-L" ^ lib_dir; "-lQt6Widgets"; "-lQt6Gui"; "-lQt6Core" ]
+          (* dune's c_library_flags treats every token that does not start with
+             "-" as an object file to link, not as a linker option. So neither
+             "/LIBPATH:dir" nor a bare "Qt6Core.lib" survives: the first fails
+             with 'Cannot find file "/LIBPATH:..."', the second with 'Cannot find
+             file "Qt6Core.lib"'.
+
+             link.exe accepts "-" as well as "/" for its options, so
+             -LIBPATH:dir is forwarded as a real linker flag. The import
+             libraries are given as absolute paths, which dune passes through as
+             plain inputs; link.exe resolves their own transitive references
+             from the directory they came from. *)
+          [ "-LIBPATH:" ^ lib_dir ]
+          @ List.map (Filename.concat lib_dir)
+              [ "Qt6Widgets.lib"; "Qt6Gui.lib"; "Qt6Core.lib" ]
+        else [ "-L" ^ lib_dir; "-lQt6Widgets"; "-lQt6Gui"; "-lQt6Core" ]
       in
       (default_cxxflags @ cflags, libs @ cpp_runtime ~is_msvc)
     in
