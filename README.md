@@ -15,16 +15,16 @@
   - **Imperative Widgets:** Direct 1-to-1 Qt API access (`Button.create`, `Layout.VBox.create`, `Canvas.create`).
   - **Declarative & Reactive DSL (`Dsl`):** High-level component trees (`vbox`, `hbox`, `button`, `line_edit`) with reactive signals (`State.create`, `State.map`) and bidirectional data binding.
 - **Lifetime Safety via Guarded Pointers:** Qt's `QPointer<QObject>` tracks C++ object lifetimes, so a destroyed widget's handle reports `Object.is_valid = false` and any further method call raises rather than crashing. `Object.delete` refuses objects that Qt owns.
-- **Compile-Time Subtyping via Phantom Variants:** Zero-overhead polymorphic variants (`` `[> `QWidget] t` ``) let a `QPushButton` be passed anywhere a `QWidget` is expected without runtime casts. See [the honest caveat](#honest-caveats) on the one escape hatch this needs.
+- **Compile-Time Subtyping via Phantom Variants:** Zero-overhead polymorphic variants (`` `[> `QWidget] t` ``) let a `QPushButton` be passed anywhere a `QWidget` is expected without runtime casts. See [the escape hatch](#honest-caveats) on the one escape hatch this needs.
 - **Zero-Copy Functional Table Model:** Bind OCaml data (arrays, records, maps) straight into `QTableView`. Qt calls back into OCaml on demand, so nothing is duplicated in C++. Sorting and per-cell colours/icons/alignment/tooltips are supported.
 - **Custom 2D Painting & Event Trampolines:** `QPainter` with render hints (antialiasing, opacity), shapes, text, arcs/pies, polygons and pixmap blitting; `paintEvent`, mouse, keyboard, resize and drag-and-drop dispatch directly to OCaml callbacks.
 
-### Honest caveats
+### Limitations
 
-Stated up front, because the rest of this document used to overclaim:
 
-- **Multicore is cooperative, not transparent.** Callbacks from Qt into OCaml take the domain lock safely, and blocking calls (modal dialogs, `App.exec`, `Drag.exec`) release it so other domains keep running. But the *imperative* widget API does **not** marshal to the GUI thread for you — calling a widget from a worker domain is your responsibility. Use `App.run_on_ui_thread` (or `Dsl.State`, which does it for you). There is no `QThread`/`QRunnable` binding yet.
-- **The phantom-variant hierarchy has one documented escape hatch.** `Core.Internal.cast` is unsound by construction; it exists because the tag is a zero-cost phantom. The *supported* API does not expose it — see `src/core.mli`.
+
+- **Multicore is cooperative.** Callbacks from Qt into OCaml take the domain lock safely, and blocking calls (modal dialogs, `App.exec`, `Drag.exec`) release it so other domains keep running. The imperative widget API does **not** marshal to the GUI thread — calling a widget from a worker domain is your responsibility. Use `App.run_on_ui_thread` (or `Dsl.State`, which does it for you). There is no `QThread`/`QRunnable` binding yet.
+- **The phantom-variant hierarchy has one documented escape hatch.** `Core.Internal.cast` is unsound by construction; it exists because the tag is a zero-cost phantom. The supported API does not expose it — see `src/core.mli`.
 - **`TreeView` is not zero-copy yet.** `TableModel` binds arbitrary OCaml data to `QTableView` with no copying. For `TreeView` there is only the copying `StandardItemModel`; a zero-copy `TreeModel` is not written yet. `ListView` likewise has no functional model.
 - **`QPainter` has no `begin`/`end`**, so you cannot paint into a `QPixmap` outside a widget's paint event, and there is no `QImage` type, so canvas renders cannot be saved or round-tripped.
 - **`Dsl` is auto-wiring, not a retained-mode framework.** There is no reconciliation or diffing: `Dsl.mount` builds the widget tree once, and only the individual two-way bindings are reactive. `cond`/`match_s` mount every branch eagerly into a `QStackedWidget`.
@@ -48,7 +48,7 @@ For a step-by-step tutorial, see [docs/TUTORIAL.md](docs/TUTORIAL.md).
 - **Data-Dense Model/View Architecture:** Tables, trees, lists, and a zero-copy functional `TableModel` that exposes native OCaml data structures to `QTableView` without copying, with sorting and per-cell styling. Trees use the copying `StandardItemModel`; a zero-copy `TreeModel` is not written yet.
 - **Custom 2D Vector Painting & Canvas:** `QPainter` support (lines, shapes, arcs, polygons, text, render hints, opacity, affine transforms, pixmap blitting) and virtual event trampolines (`paintEvent`, mouse, keyboard, resize, drag & drop). `QPainter.begin`/`end` and clipping are not bound.
 - **Desktop System Integrations:** Native file pickers, message boxes with typed answers, color/font dialogs, system clipboard (`Clipboard`), and drag-and-drop protocols (`Drag`, `MimeData`).
-- **Multicore Safety:** Re-entrant lock handling (`CamlDomainLockGuard`) that coordinates Qt callbacks and blocking calls safely with OCaml 5 runtime domains. Marshalling to the GUI thread is available via `App.run_on_ui_thread` but is not automatic — see [Honest caveats](#honest-caveats).
+- **Multicore Safety:** Re-entrant lock handling (`CamlDomainLockGuard`) that coordinates Qt callbacks and blocking calls safely with OCaml 5 runtime domains. Marshalling to the GUI thread is available via `App.run_on_ui_thread` but is not automatic — see [Limitations](#limitations).
 
 ### What is Intentionally Out of Scope (and Why)
 - **`QtNetwork`:** Network I/O is far better served by native OCaml asynchronous libraries (such as `eio`, `cohttp`, `piaf`, or `curl`) without crossing the C++ FFI boundary.
