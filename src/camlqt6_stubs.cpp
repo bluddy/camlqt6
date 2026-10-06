@@ -4664,6 +4664,28 @@ CAMLprim value caml_oqt6_qicon_is_null(value v_ic) {
     CAMLreturn(Val_bool(Icon_val(v_ic).isNull()));
 }
 
+CAMLprim value caml_oqt6_qicon_available_sizes(value v_ic) {
+    CAMLparam1(v_ic);
+    CAMLlocal3(head, cons, pair);
+    /* QIcon::availableSizes() is empty when the icon has no usable content,
+       which is the only reliable cross-platform way to ask "did this actually
+       load?". QIcon::isNull() is not: on Linux, QIcon("missing.png") constructs
+       a loader engine entry anyway and reports isNull() == false, so is_null
+       cannot be used to validate a path. Verified on Linux and Windows. */
+    QList<QSize> sizes = Icon_val(v_ic).availableSizes();
+    head = Val_int(0);
+    for (qsizetype i = sizes.size() - 1; i >= 0; --i) {
+        pair = caml_alloc_tuple(2);
+        Store_field(pair, 0, Val_int(sizes[i].width()));
+        Store_field(pair, 1, Val_int(sizes[i].height()));
+        cons = caml_alloc(2, 0);
+        Store_field(cons, 0, pair);
+        Store_field(cons, 1, head);
+        head = cons;
+    }
+    CAMLreturn(head);
+}
+
 CAMLprim value caml_oqt6_qpushbutton_set_icon(value v_btn, value v_ic) {
     CAMLparam2(v_btn, v_ic);
     QPushButton* btn = get_qobject<QPushButton>(v_btn);

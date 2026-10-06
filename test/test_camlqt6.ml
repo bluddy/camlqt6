@@ -545,9 +545,17 @@ let test_canvas_and_pixmap () =
 
   let icon = Icon.from_pixmap pm in
   H.check_bool "icon/from_pixmap_not_null" ~expected:false ~actual:(Icon.is_null icon);
+  (* TEST-13 follow-up: a missing file is NOT is_null on Linux. Qt builds a
+     loader engine entry for any filename and reports isNull() = false there,
+     while Windows reports true. available_sizes is empty in both cases, so that
+     is the portable assertion. Asserting is_null here passed on Windows for
+     months and failed on the first Linux CI run. *)
   let icon2 = Icon.from_file "definitely_not_a_file.png" in
-  H.check_bool "icon/from_missing_file_is_null" ~expected:true
-    ~actual:(Icon.is_null icon2);
+  H.check_bool "icon/missing_file_has_no_sizes" ~expected:true
+    ~actual:(Icon.available_sizes icon2 = []);
+  (* And the icon that did load must report at least one size. *)
+  H.check_bool "icon/from_pixmap_has_sizes" ~expected:true
+    ~actual:(Icon.available_sizes icon <> []);
   (* TEST-10: Icon.from_theme had no coverage anywhere. *)
   let icon3 = Icon.from_theme "document-save" in
   (* Whether the theme actually provides the icon is platform dependent, so only

@@ -155,7 +155,19 @@ module Icon : sig
   val from_file : string -> t
   val from_pixmap : Pixmap.t -> t
   val from_theme : string -> t
+
+  (** [is_null icon] is true only when Qt itself reports the icon as null. Do
+      **not** use it to check that a file loaded: on Linux,
+      [QIcon "missing.png"] constructs a loader engine entry anyway and reports
+      [isNull ()] = [false], while on Windows it reports [true]. Use
+      {!available_sizes} to find out whether an icon is actually usable. *)
   val is_null : t -> bool
+
+  (** The sizes this icon can actually be rendered at, as [(width, height)]. Empty
+      means nothing loaded: the file is missing, the format is unsupported, or
+      the theme lookup failed. This is the portable "did it work?" check, unlike
+      {!is_null}. *)
+  val available_sizes : t -> (int * int) list
 end
 
 module Painter : sig

@@ -82,7 +82,7 @@ Rather than running an automated Clang AST generator that spits out thousands of
 # Build the library and the seven demo executables
 opam exec -- dune build
 
-# Run the headless test suite (223 checks across 35 groups)
+# Run the headless test suite (224 checks across 35 groups)
 opam exec -- dune runtest
 ```
 

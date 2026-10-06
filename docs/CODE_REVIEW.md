@@ -27,7 +27,7 @@ is a hidden surprise; the outstanding work is therefore documented for users, no
 | 1 | C++ safety core: CRIT-2/3/4/5/6/8, HIGH-5, HIGH-13 | **done** |
 | 2 | API breaks: CRIT-1, HIGH-1, HIGH-2, BEH-4/5/6, DSL-1 | **done** |
 | 3 | Build/packaging: BUILD-1..26 | **done** (BUILD-10 left open on purpose) |
-| 4 | Tests: TEST-1..13 | **done** (TEST-4 still partial: no leak detection) |
+| 4 | Tests: TEST-1..14 | **done** (TEST-4 still partial: no leak detection) |
 | 5 | Features | **partly done** - graphics + model roles shipped; TreeModel/QImage/begin-end deferred (see below) |
 | 6 | Docs: DOC-1, DOC-2, DOC-10, DOC-11, DOC-12 | **done** |
 
@@ -683,7 +683,7 @@ The codebase already has the correct idiom at `:4164` (`caml_alloc_initialized_s
 
 ## 6.1 Wave 5: what shipped and what was deliberately deferred
 
-Shipped in Wave 5 (all verified, 223 checks green):
+Shipped in Wave 5 (all verified, 224 checks green):
 
 | Item | Summary |
 | :--- | :--- |
@@ -949,6 +949,22 @@ in `504fbc4`:
 The lesson generalises: an `on_paint` body is only tested once something actually paints. Any
 future test that constructs a canvas must show the window, or it is asserting nothing about the
 drawing code.
+
+### [x] TEST-14 `Icon.is_null` was used as a "the file loaded" check, and is wrong on Linux
+Found by the first Linux CI run, not locally. `test_camlqt6.ml` asserted that `Icon.from_file` on a
+missing path returns a null icon. That holds on Windows and fails on Linux, where Qt constructs a
+loader engine entry for any filename and reports `isNull() == false`. The test had been green on the
+author's Windows machine and would have been red for every Linux user.
+
+This was an API bug, not just a test bug: `Icon.is_null` is the obvious way to check whether an
+icon path is valid, and it silently gives the wrong answer on Linux. Added
+`Icon.available_sizes : t -> (int * int) list`, which is empty when nothing loaded on both
+platforms, documented the `is_null` caveat in `gui.mli`, and changed the test to assert
+`available_sizes = []` for the missing file and `available_sizes <> []` for the one that loaded.
+
+The general lesson, alongside TEST-13: a suite that only ever ran on one operating system is not a
+green suite, it is a single-platform suite. Two of the first three CI failures were platform
+assumptions in tests rather than defects in the library.
 
 ---
 

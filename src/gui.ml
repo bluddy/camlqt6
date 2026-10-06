@@ -198,6 +198,9 @@ module Icon = struct
   external from_pixmap : Pixmap.t -> t = "caml_oqt6_qicon_from_pixmap"
   external from_theme : string -> t = "caml_oqt6_qicon_from_theme"
   external is_null : t -> bool = "caml_oqt6_qicon_is_null"
+
+  external available_sizes : t -> (int * int) list
+    = "caml_oqt6_qicon_available_sizes"
 end
 
 module Painter = struct

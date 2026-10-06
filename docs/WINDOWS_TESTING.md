@@ -120,7 +120,7 @@ Every check is named as it runs, so a failure reports which one broke and how:
   ok    widget/window_title
   ok    tablemodel/data_0_1
   ...
-=== All 223 CamlQt6 tests passed ===
+=== All 224 CamlQt6 tests passed ===
 ```
 
 On failure the summary lists each failing check with expected-versus-actual and the process exits
