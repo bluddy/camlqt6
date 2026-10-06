@@ -135,8 +135,21 @@ jobs:
 
       - name: Build and test
         shell: bash
+        # Only dune-configurator, deliberately not `opam install . --deps-only`.
+        #
+        # conf-pkg-config fails to build in this configuration: on Windows +
+        # Cygwin its install-shim.sh copies cygpath.exe out of the switch's
+        # bin/, which does not exist here ("cp: cannot stat
+        # _opam/bin/cygpath.exe"). It also wants x86_64-w64-mingw32-pkgconf,
+        # which it only depends on for os-distribution = msys2, not cygwin.
+        # Neither is needed: QTDIR is set above, and config/discover.ml tries
+        # QTDIR long before pkg-config, so no pkg-config process is ever
+        # started on this leg.
+        #
+        # The dependency set itself is still checked, by the metadata job's
+        # `opam install . --deps-only --dry-run`, which solves without building.
         run: |
-          opam install -y . --deps-only
+          opam install -y dune-configurator
           opam exec -- dune build @install
           opam exec -- dune runtest
 
