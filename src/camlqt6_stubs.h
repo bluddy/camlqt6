@@ -4,11 +4,16 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-
 #ifdef __cplusplus
+
 #include <QPointer>
 #include <QObject>
 #include <QThread>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <pthread.h>
+#endif
 #endif
 
 #define CAML_NAME_SPACE
@@ -68,6 +73,30 @@ void mark_parented(value v);
 
 extern thread_local int thread_domain_lock_depth;
 extern thread_local bool thread_is_registered;
+extern uintptr_t gui_thread_id;
+extern bool gui_thread_id_set;
+
+/* Platform-specific function to get current thread ID as a numeric value. */
+inline uintptr_t get_current_thread_id() {
+#ifdef _WIN32
+    return static_cast<uintptr_t>(GetCurrentThreadId());
+#else
+    return reinterpret_cast<uintptr_t>(pthread_self());
+#endif
+}
+
+/* Record the GUI thread ID at App.create time. */
+inline void set_gui_thread_id() {
+    gui_thread_id = get_current_thread_id();
+    gui_thread_id_set = true;
+}
+
+/* Check that we're on the GUI thread. Raises Failure if not. */
+inline void check_gui_thread(const char* where) {
+    if (gui_thread_id_set && get_current_thread_id() != gui_thread_id) {
+        caml_failwith(where);
+    }
+}
 
 /* thread_domain_lock_depth is a per-thread count of nested references this
    thread holds on the OCaml 5 runtime system:
@@ -174,6 +203,9 @@ T* get_qobject(value v) {
     OCamlQObject* holder = QObject_holder(v);
     if (holder->ptr.isNull()) {
         caml_failwith("CamlQt6: object has already been destroyed or is null");
+    }
+    if (gui_thread_id_set && get_current_thread_id() != gui_thread_id) {
+        caml_failwith("CamlQt6: GUI operation called from non-GUI thread; use App.run_on_ui_thread to marshal");
     }
     T* casted = dynamic_cast<T*>(holder->ptr.data());
     if (!casted) {

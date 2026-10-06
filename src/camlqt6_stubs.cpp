@@ -131,6 +131,8 @@ void mark_parented(value v) {
 
 thread_local int thread_domain_lock_depth = 0;
 thread_local bool thread_is_registered = false;
+uintptr_t gui_thread_id = 0;
+bool gui_thread_id_set = false;
 
 static void connect_root_cleanup(QObject* sender, value* root) {
     QObject::connect(sender, &QObject::destroyed, [root](QObject*) {
@@ -975,6 +977,7 @@ CAMLprim value caml_oqt6_qapplication_create(value v_args) {
     }
 
     global_app = new QApplication(global_argc, global_argv.data());
+    set_gui_thread_id();
     OCamlUiDispatcher::instance();
     CAMLreturn(alloc_qobject(global_app, false));
 }
