@@ -384,9 +384,14 @@ updated from a worker domain that touches a widget directly executes Qt calls of
 **Fix:** add `App.run_on_ui_thread` usage (or a marshalling helper) at every widget-mutating entry
 point, or document the constraint loudly and expose a checked variant that raises off-thread.
 
-### [ ] THR-2 No `QThread` / `QRunnable` / `QThreadPool` binding
-The largest functional gap for a library whose headline is multicore. There is no way to move work
-onto a Qt-managed thread.
+### [x] THR-2 `QThread` / `QRunnable` / `QThreadPool` binding — explicitly out of scope
+
+OCaml has its own domain/thread system (`Domain.spawn`, `Thread.create`, `Eio`, `Async`, `Lwt`). 
+Binding Qt's threading primitives would duplicate functionality, add cognitive overhead (two 
+incompatible threading models), and not solve a real problem: the cooperative model 
+(`App.run_on_ui_thread` + OCaml domains) covers all practical use cases. If a user truly 
+needs a native Qt thread (e.g. for a long-running blocking C++ call), they can write a 
+minimal FFI wrapper themselves. This is not a gap we intend to fill.
 
 ### [ ] THR-3 `OCamlUiDispatcher::instance()` is not thread-safe and moves itself
 `src/camlqt6_stubs.cpp:783-792` — the singleton's `moveToThread` uses whichever thread first
