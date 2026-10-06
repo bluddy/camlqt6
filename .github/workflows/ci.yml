@@ -104,6 +104,14 @@ jobs:
           opam-disable-sandboxing: true
           opam-pin: false
       - run: opam lint camlqt6.opam
+      # opam lint does not check that dependencies resolve, so it happily passes
+      # a package naming a dependency that does not exist in opam-repository.
+      # That is how "pkg-config" shipped when the correct name is
+      # conf-pkg-config; opam install then failed for everyone with
+      # "Missing dependency ... unknown package". A dry run solves without
+      # touching the switch.
+      - name: Dependencies must be solvable
+        run: opam install . --deps-only --dry-run
       # Guards the hand-edited discovery script, which nothing else exercises.
       # config/discover.ml is run by dune-configurator on every build, so a
       # warning there would otherwise only be seen as console noise.

@@ -16,8 +16,13 @@
  (depends
   ;; Qt itself is discovered at configure time by config/discover.ml, which
   ;; probes QTDIR / Qt6_DIR / pkg-config / qmake6. There is no maintained conf
-  ;; package for Qt 6, so the dependency is declared as pkg-config plus the
+  ;; package for Qt 6, so the dependency is declared as conf-pkg-config plus the
   ;; platform depexts in camlqt6.opam.template rather than a `conf-qt6`.
   (ocaml (>= 5.0.0))
   dune-configurator
-  pkg-config))
+  ;; conf-pkg-config, not `pkg-config`: discover.ml execs the pkg-config binary,
+  ;; and there is no opam package called `pkg-config` (the OCaml binding of that
+  ;; name was never in opam-repository, so `opam install camlqt6` failed with
+  ;; "Missing dependency: deps-of-camlqt6 -> pkg-config / unknown package").
+  ;; opam lint does not check that dependencies resolve, so this passed review.
+  conf-pkg-config))

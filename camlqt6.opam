@@ -18,7 +18,7 @@ depends: [
   "dune" {>= "3.13"}
   "ocaml" {>= "5.0.0"}
   "dune-configurator"
-  "pkg-config"
+  "conf-pkg-config"
   "odoc" {with-doc}
 ]
 build: [
