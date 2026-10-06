@@ -88,10 +88,14 @@ jobs:
           key: ${{ runner.os }}-opam-${{ matrix.ocaml }}-${{ hashFiles('camlqt6.opam') }}
 
       - name: Build and test
+        # opam exec -- deliberately, not bare dune. setup-ocaml creates a local
+        # switch in _opam/, whose bin/ is not on PATH, so a bare `dune build`
+        # fails with "dune: command not found" (exit 127) even though dune is
+        # installed. opam exec resolves the same switch the install used.
         run: |
           opam install -y . --deps-only
-          dune build @install
-          dune runtest
+          opam exec -- dune build @install
+          opam exec -- dune runtest
 
   metadata:
     name: opam metadata
@@ -117,7 +121,7 @@ jobs:
       # warning there would otherwise only be seen as console noise.
       - name: Configure must not warn
         run: |
-          output=$(dune build @all 2>&1 || true)
+          output=$(opam exec -- dune build @all 2>&1 || true)
           echo "$output"
           if echo "$output" | grep -q 'camlqt6-discover] warning'; then
             echo "::error::config/discover.ml emitted a discovery warning"
@@ -151,4 +155,4 @@ jobs:
       # either, so the flags come from the `warnings` env stanza in
       # dune-workspace. `dune build -- <flags>` does not work: dune reads those
       # as build targets.
-      - run: dune build @all --profile warnings
+      - run: opam exec -- dune build @all --profile warnings
