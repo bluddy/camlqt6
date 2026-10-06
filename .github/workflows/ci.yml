@@ -92,11 +92,16 @@ jobs:
     # either the mingw-w64 or the msys repository, so there is no way to get a
     # matching OCaml from it.
     #
-    # Instead setup-ocaml provisions a Cygwin-based opam with a MinGW-w64
-    # OCaml compiler, and Qt comes from its official win64_mingw package via
-    # aqtinstall. Both target x86_64-w64-mingw32, so the import libraries and
-    # the OCaml runtime agree on ABI. This is the same pairing the sibling
-    # bluddy/rails release workflow uses for SDL2.
+    # Instead setup-ocaml provisions opam with an MSVC-built OCaml, and Qt comes
+    # from its official win64_msvc2022_64 package via aqtinstall. Both link the
+    # MSVC CRT, so there is no mingw64/ucrt64 runtime question to answer. This
+    # is the pairing the README documents for Windows.
+    #
+    # QTDIR is exported rather than staging headers into a Cygwin sysroot and
+    # rewriting .pc files, which is what the sibling bluddy/rails workflow has to
+    # do for SDL2. Qt ships include/QtWidgets and lib/ directly, and
+    # config/discover.ml already understands an MSVC prefix, so the .pc surgery
+    # is unnecessary here.
     steps:
       - uses: actions/checkout@v4
 
@@ -106,16 +111,22 @@ jobs:
           ocaml-compiler: "5.3"
           opam-disable-sandboxing: true
           opam-pin: false
+          # MSVC on both sides. The default mingw toolchain provisions a Cygwin
+          # MinGW-w64 gcc whose driver exists but has no C++ backend, so building
+          # the stubs died with "cannot execute 'cc1plus'". MSVC also sidesteps
+          # the runtime question entirely: Qt and OCaml both link the MSVC CRT.
+          # Requires OCaml >= 5.3, which is what we pin.
+          windows-compiler: msvc
 
-      - name: Install Qt (win64_mingw)
+      - name: Install Qt (win64_msvc2022_64)
         shell: bash
         run: |
           python -m pip install --upgrade aqtinstall
-          python -m aqt install-qt windows desktop 6.8.0 win64_mingw \
+          python -m aqt install-qt windows desktop 6.8.0 win64_msvc2022_64 \
             -O "$GITHUB_WORKSPACE/Qt"
           # aqt lays this out as <outdir>/<version>/<arch>; this is the prefix
           # QTDIR wants, since it holds include/QtWidgets/qwidget.h and lib/.
-          qt="$GITHUB_WORKSPACE/Qt/6.8.0/mingw_64"
+          qt="$GITHUB_WORKSPACE/Qt/6.8.0/msvc2022_64"
           test -f "$qt/include/QtWidgets/qwidget.h" || {
             echo "::error::Qt headers not where QTDIR expects them"; exit 1; }
           echo "QTDIR=$qt" >> "$GITHUB_ENV"
